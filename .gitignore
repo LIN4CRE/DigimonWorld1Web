@@ -1,0 +1,7 @@
+node_modules/
+rom/*.bin
+rom/*.zip
+rom/*.iso
+extracted/SLES_*
+extracted/*.BIN
+.DS_Store

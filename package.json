@@ -1,0 +1,13 @@
+{
+  "name": "digimon-world-1-web",
+  "version": "1.0.0",
+  "description": "Reverse-Engineered Digimon World (Europe) [SLES_029.14] WebUI, REA Evidence Workbench, MIPS R3000A Disassembler & Browser Edition",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "analyze:disc": "node analyze-ps1-disc.mjs",
+    "analyze:sles": "node analyze-sles-and-data.mjs",
+    "build:db": "node build-reverse-engineered-db.mjs"
+  },
+  "license": "MIT"
+}

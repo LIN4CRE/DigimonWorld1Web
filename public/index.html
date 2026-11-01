@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Digimon World (Europe) [SLES_029.14] — Reverse-Engineered WebUI</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top-header">
+    <div class="brand">
+      <img src="/textures/TITLE256.png" alt="Digimon World Title TIM" class="brand-logo pixelated" />
+      <div class="brand-title">
+        <h1>DIGIMON WORLD (EUROPE) — WEBUI &amp; REA WORKBENCH</h1>
+        <div class="brand-subtitle">SLES_029.14 • MIPS R3000A • ISO9660 MODE2/2352 • REA v6.7.0 VERIFIED</div>
+      </div>
+    </div>
+    <nav class="nav-tabs" id="mainNav">
+      <button class="nav-btn active" data-tab="tab-vpet">🎮 Play File Island WebUI</button>
+      <button class="nav-btn" data-tab="tab-ps1-emu">💿 Full PS1 ROM Emulator</button>
+      <button class="nav-btn" data-tab="tab-rea">🔬 REA &amp; MIPS Disassembler</button>
+      <button class="nav-btn" data-tab="tab-rom-db">📚 Extracted ROM Database</button>
+      <button class="nav-btn" data-tab="tab-disc">🗂️ Disc Explorer &amp; Hex Viewer</button>
+    </nav>
+  </header>
+
+  <main class="main-container">
+    <!-- TAB 1: NATIVE BROWSER EDITION (V-PET, GREEN GYM & BATTLE ARENA) -->
+    <section id="tab-vpet" class="tab-pane active">
+      <div class="grid-2">
+        <!-- Left Column: Interactive Canvas Viewport + Action Bar -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span>🏝️ File Island Interactive WebUI</span>
+              <span class="badge badge-gold" id="vpetLocationBadge">File City — Native Forest</span>
+            </h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="vpetAreaSelect" class="select-control" title="Travel to File Island Area">
+                <option value="File City (Top)">🏠 File City (Jijimon's House)</option>
+                <option value="Green Gym">🏋️ Green Gym (Training)</option>
+                <option value="Native Forest">🌲 Native Forest (MAYO01.MAP)</option>
+                <option value="Dragon Eye Lake">🎣 Dragon Eye Lake (FISH_REL.BIN)</option>
+                <option value="Tropical Jungle">🌴 Tropical Jungle (TROP00.MAP)</option>
+                <option value="Freezeland">❄️ Freezeland (FRZL16.MAP)</option>
+                <option value="Ogre Fortress">🏰 Ogre Fortress (OGRE10.MAP)</option>
+                <option value="Greymon Arena">⚔️ Greymon Battle Arena (STD_REL.BIN)</option>
+                <option value="Mt. Infinity">⚡ Mt. Infinity (MGEN01.MAP)</option>
+              </select>
+              <button class="nav-btn" id="toggleCrtBtn" title="Toggle CRT Scanlines">📺 CRT</button>
+            </div>
+          </div>
+
+          <div class="vpet-viewport crt" id="vpetViewport">
+            <div class="vpet-hud-top">
+              <div>
+                <span style="color:#fbbf24; font-weight:700;" id="hudDigimonName">Agumon</span>
+                <span class="badge badge-cyan" id="hudStage">Rookie (Child)</span>
+                <span class="badge badge-purple" id="hudType">Vaccine</span>
+              </div>
+              <div style="display:flex; gap:14px;">
+                <span>🕒 <strong id="hudClock">Day 1 • 12:00 (Day)</strong></span>
+                <span>💰 <strong id="hudBits" style="color:#fbbf24;">1,500</strong> Bits</span>
+                <span>🏅 Prosperity: <strong id="hudProsperity" style="color:#34d399;">12</strong></span>
+              </div>
+            </div>
+
+            <div class="vpet-stage">
+              <div class="vpet-canvas-wrap">
+                <canvas id="vpetCanvas" width="560" height="270"></canvas>
+              </div>
+              <div id="battleControlsBar" style="display:none; margin-top:10px; gap:8px; flex-wrap:wrap; justify-content:center;"></div>
+            </div>
+
+            <div class="vpet-action-bar">
+              <button class="action-btn primary" id="btnFeedMeat">🍖 Feed Meat</button>
+              <button class="action-btn" id="btnTrainGym">🏋️ Train Stat</button>
+              <button class="action-btn" id="btnPraise">🎵 Praise</button>
+              <button class="action-btn" id="btnRest">💤 Rest / Sleep</button>
+              <button class="action-btn" id="btnCleanPoop">🚽 Potty / Clean</button>
+              <button class="action-btn primary" id="btnExploreBattle">⚔️ Wild Battle</button>
+              <button class="action-btn" id="btnDigivolveNow">✨ Digivolve</button>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;">
+            <div class="panel-header" style="margin-bottom:8px; padding-bottom:6px;">
+              <span class="panel-title" style="font-size:0.86rem;">📜 Live Engine Event Log (Backed by SLES_029.14 Structs)</span>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span style="font-size:0.76rem; color:var(--text-muted);">Switch Partner Species (0xA8B5C):</span>
+                <select id="partnerSpeciesSelect" class="select-control"></select>
+              </div>
+            </div>
+            <div class="log-box" id="vpetLog"></div>
+          </div>
+        </div>
+
+        <!-- Right Column: Partner Parameters, Moves, and Item Bag (with real ITEM.TIM sprites!) -->
+        <div style="display:flex; flex-direction:column; gap:18px;">
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">📊 Partner Digimon Parameters &amp; ROM Struct</h2>
+              <span class="badge badge-cyan mono" id="partnerStructAddr">SLES_029.14 @ 0xA8BBC</span>
+            </div>
+
+            <div class="stat-grid">
+              <div class="stat-box">
+                <div class="stat-label"><span>HP (Hit Points)</span><span class="stat-value" id="statHpVal">1200 / 1200</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statHpBar" style="width:100%; background:#10b981;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>MP (Magic Points)</span><span class="stat-value" id="statMpVal">900 / 900</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statMpBar" style="width:100%; background:#06b6d4;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>⚔️ Offense</span><span class="stat-value" id="statOffVal">145 / 999</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statOffBar" style="width:15%; background:#ef4444;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>🛡️ Defense</span><span class="stat-value" id="statDefVal">120 / 999</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statDefBar" style="width:12%; background:#f59e0b;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>⚡ Speed</span><span class="stat-value" id="statSpdVal">115 / 999</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statSpdBar" style="width:12%; background:#38bdf8;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>🧠 Brains</span><span class="stat-value" id="statBrnVal">130 / 999</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statBrnBar" style="width:13%; background:#a855f7;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>😊 Happiness / Discipline</span><span class="stat-value" id="statHapVal">85% / 75%</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statHapBar" style="width:85%; background:#fbbf24;"></div></div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-label"><span>⚖️ Weight / Tiredness</span><span class="stat-value" id="statWgtVal">20G • 10% Fatigue</span></div>
+                <div class="progress-track"><div class="progress-fill" id="statFatigueBar" style="width:10%; background:#f43f5e;"></div></div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:0.8rem; background:var(--bg-card); padding:10px 12px; border-radius:8px; border:1px solid var(--border);">
+              <div><strong>3D Model:</strong> <span class="mono" id="partnerModelCode">AGUM.MMD</span></div>
+              <div><strong>Specialties:</strong> <span id="partnerSpecs">Fire, Battle</span></div>
+              <div><strong>Finisher:</strong> <span style="color:#fbbf24; font-weight:700;" id="partnerFinisher">Pepper Breath</span></div>
+              <div><strong>Wild Drop:</strong> <span id="partnerDrop">sm recovery (50%)</span></div>
+            </div>
+
+            <div style="margin-top:12px;">
+              <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px; font-family:var(--font-mono);">
+                LEARNABLE TECHNIQUES FROM SLES_029.14 (Click any move to test in battle):
+              </div>
+              <div id="partnerMovesList" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">🎒 Tamer Item Bag (Authentic ITEM.TIM Sprites + SLES_029.14 Palettes)</h2>
+              <button class="nav-btn" id="btnAddStarterPack" style="padding:4px 10px; font-size:0.75rem;">+ Restock Supplies</button>
+            </div>
+            <div id="inventoryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:220px; overflow-y:auto;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: FULL PS1 ROM EMULATOR (EMULATORJS WASM) -->
+    <section id="tab-ps1-emu" class="tab-pane">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">
+              💿 PlayStation 1 WebAssembly Emulator — Digimon World (Europe) [SLES-02914]
+              <span class="badge badge-green">Streaming 387 MB BIN/CUE Live</span>
+            </h2>
+            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+              Runs your exact <code>D:\games\Digimon World (Europe).zip</code> directly in the browser via EmulatorJS (<code>pcsx_rearmed</code> WebAssembly core).
+            </div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="nav-btn active" id="btnLaunchPs1Emu">▶️ Boot PS1 ROM in Browser</button>
+            <button class="nav-btn" id="btnReloadPs1Emu">🔄 Restart Core</button>
+            <a href="/emulator.html" target="_blank" class="nav-btn" style="text-decoration:none;">↗️ Open Full Window</a>
+          </div>
+        </div>
+
+        <div class="emulator-frame-wrap" id="emuContainer">
+          <div id="emuPlaceholder" style="text-align:center; max-width:520px; padding:24px;">
+            <img src="/textures/TITLE256.png" alt="Digimon World Title" class="pixelated" style="width:320px; border-radius:8px; border:2px solid var(--accent-gold); margin-bottom:14px;" />
+            <h3 style="margin:0 0 8px;">Ready to Boot Digimon World (Europe) [SLES_029.14]</h3>
+            <p style="font-size:0.86rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">
+              Click <strong>Boot PS1 ROM in Browser</strong> to launch the WebAssembly PlayStation 1 core and stream <code>Digimon World (Europe).zip</code> (239 MB compressed / 387 MB Mode2/2352 raw disc).Supports keyboard, USB/Bluetooth gamepads, save states, and CRT shaders.
+            </p>
+            <button class="nav-btn active" id="btnLaunchPs1EmuCenter" style="margin:0 auto; padding:12px 24px; font-size:0.95rem;">
+              ▶️ Launch Digimon World PS1 Emulator Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: REA & BINARY REVERSE-ENGINEERING WORKBENCH -->
+    <section id="tab-rea" class="tab-pane">
+      <div class="grid-3" style="margin-bottom:20px;">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">🛡️ REA Artifact Graph Verification</h3>
+            <span class="badge badge-green">OBSERVED • VERIFIED</span>
+          </div>
+          <div id="reaSummaryCard" class="mono" style="font-size:0.78rem; line-height:1.65; word-break:break-all;"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">⚙️ PS-X EXE Header (SLES_029.14)</h3>
+            <span class="badge badge-gold">MIPS R3000A</span>
+          </div>
+          <div id="exeHeaderCard" class="mono" style="font-size:0.78rem; line-height:1.65;"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">🗺️ PS1 2MB RAM Architecture</h3>
+            <span class="badge badge-cyan">0x80000000 - 0x801FFFFF</span>
+          </div>
+          <div style="font-size:0.8rem; line-height:1.55;">
+            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid #64748b; margin-bottom:6px; border-radius:4px;">
+              <strong class="mono">0x80000000 - 0x8000FFFF</strong> (64 KB)<br/>
+              <span style="color:var(--text-muted);">PlayStation BIOS Kernel, Interrupt Vectors &amp; Event Tables (TCB=4, EVENT=16)</span>
+            </div>
+            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid var(--accent-gold); margin-bottom:6px; border-radius:4px;">
+              <strong class="mono">0x80010000 - 0x800907FF</strong> (514 KB)<br/>
+              <span style="color:#fbbf24;">Dynamic Overlay Arena (16 <code>*_REL.BIN</code> modules swap here on demand!)</span>
+            </div>
+            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid var(--accent-cyan); margin-bottom:6px; border-radius:4px;">
+              <strong class="mono">0x80090800 - 0x8013BFFF</strong> (702.5 KB)<br/>
+              <span style="color:#38bdf8;">Resident Core <code>SLES_029.14</code> (.text, .rodata, Shift-JIS Strings, Digimon/Tech/Item Structs)</span>
+            </div>
+            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid var(--accent-purple); border-radius:4px;">
+              <strong class="mono">0x8013BD18 - 0x801FFFF0</strong> (784 KB)<br/>
+              <span style="color:#c084fc;">.bss Uninitialized Globals, Heap &amp; Stack Top (<code>SP = 0x801FFFF0</code>)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">🔍 Live MIPS R3000A Disassembler (SLES_029.14)</h3>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <input type="text" id="mipsAddrInput" class="input-control mono" value="0x800A4B40" style="width:130px;" />
+              <button class="nav-btn active" id="btnDisasmGo">Disassemble</button>
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+            <button class="nav-btn mips-preset" data-addr="0x800A4B40" style="font-size:0.74rem; padding:4px 8px;">Entrypoint (0x800A4B40)</button>
+            <button class="nav-btn mips-preset" data-addr="0x80090800" style="font-size:0.74rem; padding:4px 8px;">Text Start (0x80090800)</button>
+            <button class="nav-btn mips-preset" data-addr="0x800CC6D4" style="font-size:0.74rem; padding:4px 8px;">HP Floppy Handler (0x800CC6D4)</button>
+            <button class="nav-btn mips-preset" data-addr="0x800CC60C" style="font-size:0.74rem; padding:4px 8px;">MP Floppy Handler (0x800CC60C)</button>
+            <button class="nav-btn mips-preset" data-addr="0x800CB5A4" style="font-size:0.74rem; padding:4px 8px;">Food Item Handler (0x800CB5A4)</button>
+          </div>
+          <div class="data-table-wrap" style="max-height:430px;">
+            <table class="data-table mono">
+              <thead>
+                <tr>
+                  <th>RAM VAddr</th>
+                  <th>File Off</th>
+                  <th>Raw Bytes (LE)</th>
+                  <th>MIPS R3000A Instruction</th>
+                </tr>
+              </thead>
+              <tbody id="mipsDisasmBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">🧩 16 Dynamic Overlay Modules (<code>*_REL.BIN</code>)</h3>
+            <span class="badge badge-gold">Loaded into 0x80010000</span>
+          </div>
+          <div class="data-table-wrap" style="max-height:475px;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Overlay Binary</th>
+                  <th>Subsystem Role</th>
+                  <th>Size</th>
+                  <th>Disc LBA</th>
+                  <th>SHA-256 Digest</th>
+                </tr>
+              </thead>
+              <tbody id="overlaysTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: EXTRACTED ROM DATABASE -->
+    <section id="tab-rom-db" class="tab-pane">
+      <div class="panel" style="margin-bottom:20px;">
+        <div class="panel-header">
+          <div class="nav-tabs" id="dbSubNav">
+            <button class="nav-btn active" data-subtab="db-digimon">🦖 127 Digimon Structs (0xA8B5C)</button>
+            <button class="nav-btn" data-subtab="db-techs">🔥 121 Battle Techniques (0x9FCB8)</button>
+            <button class="nav-btn" data-subtab="db-items">🎒 128 Items &amp; Sprites (0xA0A58)</button>
+            <button class="nav-btn" data-subtab="db-textures">🖼️ 14 Decoded PS1 .TIM Textures</button>
+          </div>
+        </div>
+
+        <!-- Subtab: Digimon -->
+        <div id="db-digimon" class="db-subpane">
+          <div class="search-bar">
+            <input type="text" id="searchDigimon" class="input-control" placeholder="Search Digimon name, model (.MMD), move, or item drop..." style="flex:1; min-width:240px;" />
+            <select id="filterDigimonStage" class="select-control">
+              <option value="">All Evolution Stages</option>
+              <option value="Fresh (Baby I)">Fresh (Baby I)</option>
+              <option value="In-Training (Baby II)">In-Training (Baby II)</option>
+              <option value="Rookie (Child)">Rookie (Child)</option>
+              <option value="Champion (Adult)">Champion (Adult)</option>
+              <option value="Ultimate (Perfect)">Ultimate (Perfect)</option>
+            </select>
+            <select id="filterDigimonType" class="select-control">
+              <option value="">All Attributes</option>
+              <option value="Vaccine">Vaccine</option>
+              <option value="Data">Data</option>
+              <option value="Virus">Virus</option>
+            </select>
+          </div>
+          <div class="data-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Digimon Species</th>
+                  <th>3D Model</th>
+                  <th>Stage</th>
+                  <th>Attribute</th>
+                  <th>Specialties</th>
+                  <th>Finisher &amp; Moveset</th>
+                  <th>Wild Item Drop</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="digimonTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Subtab: Techniques -->
+        <div id="db-techs" class="db-subpane" style="display:none;">
+          <div class="search-bar">
+            <input type="text" id="searchTech" class="input-control" placeholder="Search technique name, specialty, or status effect..." style="flex:1; min-width:240px;" />
+            <select id="filterTechElement" class="select-control">
+              <option value="">All Specialties</option>
+              <option value="Fire">Fire</option>
+              <option value="Battle">Battle</option>
+              <option value="Air">Air</option>
+              <option value="Earth">Earth</option>
+              <option value="Ice">Ice</option>
+              <option value="Mech">Mech</option>
+              <option value="Filth">Filth</option>
+            </select>
+          </div>
+          <div class="data-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Technique Name</th>
+                  <th>Category</th>
+                  <th>Element</th>
+                  <th>Base Power</th>
+                  <th>MP Cost</th>
+                  <th>Range</th>
+                  <th>Status Effect</th>
+                  <th>Acc / Block Factor</th>
+                  <th>Struct Offset</th>
+                </tr>
+              </thead>
+              <tbody id="techTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Subtab: Items -->
+        <div id="db-items" class="db-subpane" style="display:none;">
+          <div class="search-bar">
+            <input type="text" id="searchItem" class="input-control" placeholder="Search item name, description, or category..." style="flex:1; min-width:240px;" />
+            <select id="filterItemCat" class="select-control">
+              <option value="">All Categories</option>
+              <option value="Recovery / Medicine">Recovery / Medicine</option>
+              <option value="Food / Produce">Food / Produce</option>
+              <option value="Stat Chip">Stat Chip</option>
+              <option value="Battle Disk">Battle Disk</option>
+              <option value="Digivolution Item">Digivolution Item</option>
+              <option value="Care / Utility">Care / Utility</option>
+              <option value="Key / Special">Key / Special</option>
+            </select>
+          </div>
+          <div class="data-table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>TIM Icon</th>
+                  <th>Item Name</th>
+                  <th>Category</th>
+                  <th>ROM Description (Shift-JIS Decoded)</th>
+                  <th>CLUT Row</th>
+                  <th>RAM Handler Ptr</th>
+                  <th>Give to Partner</th>
+                </tr>
+              </thead>
+              <tbody id="itemTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Subtab: Decoded PS1 .TIM Textures -->
+        <div id="db-textures" class="db-subpane" style="display:none;">
+          <div class="texture-grid" id="texturesGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: ISO 9660 DISC EXPLORER & HEX VIEWER -->
+    <section id="tab-disc" class="tab-pane">
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">💿 ISO 9660 Mode2/2352 Disc File System (887 Entries)</h2>
+            <span class="badge badge-cyan" id="discCountBadge">887 files</span>
+          </div>
+          <div class="search-bar">
+            <input type="text" id="searchDiscFile" class="input-control" placeholder="Filter by path or filename (e.g. .MMD, .MAP, .TIM, .SCN, .BIN)..." style="flex:1;" />
+          </div>
+          <div class="data-table-wrap" style="max-height:500px;">
+            <table class="data-table mono">
+              <thead>
+                <tr>
+                  <th>Disc Path</th>
+                  <th>Type</th>
+                  <th>LBA Sector</th>
+                  <th>Size (Bytes)</th>
+                  <th>Inspect</th>
+                </tr>
+              </thead>
+              <tbody id="discFilesBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">🔬 Live CD-ROM Sector Hex &amp; ASCII Inspector</h2>
+            <span class="badge badge-gold mono" id="hexTargetBadge">SYSTEM.CNF (LBA 23)</span>
+          </div>
+          <div class="data-table-wrap" style="max-height:555px;">
+            <table class="data-table mono">
+              <thead>
+                <tr>
+                  <th>Offset</th>
+                  <th>00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F</th>
+                  <th>ASCII</th>
+                </tr>
+              </thead>
+              <tbody id="hexViewerBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
