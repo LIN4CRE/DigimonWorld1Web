@@ -44,17 +44,50 @@ const gameState = {
   ]
 };
 
-// Preload extracted PS1 TIM PNGs for canvas rendering
+// Preload extracted PS1 TIM PNGs & Pre-Rendered 3D .TFS Map Backgrounds for HD Canvas
 const timImages = {
   title: new Image(),
   item: new Image(),
   btl: new Image(),
-  fi: new Image()
+  fi: new Image(),
+  arena: new Image()
 };
 timImages.title.src = '/textures/TITLE256.png';
 timImages.item.src = '/textures/ITEM.png';
 timImages.btl.src = '/textures/BTLCOMND.png';
 timImages.fi.src = '/textures/FI_INFO.png';
+timImages.arena.src = '/textures/B_TOGI.png';
+
+const AREA_MAP_URLS = {
+  'File City (Top)': '/maps/file_city.png',
+  "Jijimon's House": '/maps/jijimon_house.png',
+  'Green Gym': '/maps/green_gym.png',
+  'Native Forest': '/maps/native_forest.png',
+  'Dragon Eye Lake': '/maps/dragon_eye_lake.png',
+  'Tropical Jungle': '/maps/tropical_jungle.png',
+  'Freezeland': '/maps/freezeland.png',
+  'Ogre Fortress': '/maps/ogre_fortress.png',
+  'Greymon Arena': '/textures/B_TOGI.png',
+  'Mt. Infinity': '/maps/mt_infinity.png'
+};
+
+const mapImages = {};
+Object.entries(AREA_MAP_URLS).forEach(([areaName, url]) => {
+  const img = new Image();
+  img.src = url;
+  mapImages[areaName] = img;
+});
+
+const cardImageCache = {};
+function getCardImage(url) {
+  if (!url) return null;
+  if (!cardImageCache[url]) {
+    const img = new Image();
+    img.src = url;
+    cardImageCache[url] = img;
+  }
+  return cardImageCache[url];
+}
 
 // Digivolution item mapping (SLES_029.14 Item ID -> Target Digimon ID)
 const EVO_ITEM_MAP = {
@@ -138,6 +171,20 @@ function updateVpetUI() {
   document.getElementById('partnerSpecs').textContent = p.specialties.join(', ') || 'None';
   document.getElementById('partnerFinisher').textContent = p.finisher || 'None';
   document.getElementById('partnerDrop').textContent = p.dropChance > 0 ? `${p.dropItem} (${p.dropChance}%)` : 'None';
+
+  // Update Partner HD 3D Portrait Box
+  const cardImgEl = document.getElementById('partnerCardImg');
+  const cardTitleEl = document.getElementById('partnerCardTitle');
+  const cardNumEl = document.getElementById('partnerCardNumber');
+  if (cardImgEl && cardTitleEl && cardNumEl) {
+    const fallbackUrl = `/cards/card_${String((p.id - 1) % 66).padStart(2, '0')}.png`;
+    cardImgEl.src = p.cardUrl || fallbackUrl;
+    cardTitleEl.textContent = `${p.name} (${p.modelFile})`;
+    const cardMatch = DB.cards ? DB.cards.find(c => c.digimonId === p.id) : null;
+    cardNumEl.textContent = cardMatch
+      ? `CARD.ALL #${String(cardMatch.cardNumber).padStart(2, '0')} • 300×360 2x EPX HD`
+      : `SLES_029.14 #${p.id} • 2x EPX HD`;
+  }
 
   document.getElementById('statHpVal').textContent = `${gameState.hp} / ${gameState.maxHp}`;
   document.getElementById('statHpBar').style.width = `${Math.min(100, (gameState.hp / gameState.maxHp) * 100)}%`;
@@ -357,50 +404,69 @@ function usePartnerTechnique(tech) {
   updateVpetUI();
 }
 
-// Canvas 60fps Renderer for File Island WebUI
+// Canvas 60fps 720p HD Renderer for File Island WebUI
 function startCanvasLoop() {
   const canvas = document.getElementById('vpetCanvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
 
-  function drawDigimonCharacter(x, y, digi, isEnemy = false, tick = 0) {
-    const bob = Math.sin(tick * 0.08 + (isEnemy ? 2 : 0)) * 4;
+  // Initialize 45 ambient weather / digital particles
+  const ambientParticles = Array.from({ length: 45 }, () => ({
+    x: Math.random() * 1280,
+    y: Math.random() * 720,
+    r: 1.5 + Math.random() * 3.2,
+    vx: (Math.random() - 0.5) * 0.7,
+    vy: -0.4 - Math.random() * 0.8,
+    alpha: 0.3 + Math.random() * 0.65,
+    phase: Math.random() * Math.PI * 2
+  }));
+
+  function drawHdDigimonUnit(x, y, digi, isEnemy = false, tick = 0) {
+    const bob = Math.sin(tick * 0.075 + (isEnemy ? 2.1 : 0)) * 7;
+    const spec = digi.specialties[0] || 'Fire';
+    const palette = {
+      Fire: ['#f59e0b', '#dc2626', '#fef08a', 'rgba(245, 158, 11, 0.38)'],
+      Battle: ['#fb923c', '#991b1b', '#fde047', 'rgba(251, 146, 60, 0.38)'],
+      Air: ['#38bdf8', '#1d4ed8', '#e0f2fe', 'rgba(56, 189, 248, 0.38)'],
+      Earth: ['#4ade80', '#15803d', '#fef08a', 'rgba(74, 222, 128, 0.38)'],
+      Ice: ['#67e8f9', '#0369a1', '#f0f9ff', 'rgba(103, 232, 249, 0.38)'],
+      Mech: ['#94a3b8', '#334155', '#ef4444', 'rgba(148, 163, 184, 0.38)'],
+      Filth: ['#a3e635', '#4d7c0f', '#fde047', 'rgba(163, 230, 53, 0.38)']
+    }[spec] || ['#f59e0b', '#b45309', '#fef08a', 'rgba(245, 158, 11, 0.38)'];
+
     ctx.save();
     ctx.translate(x, y + bob);
     if (isEnemy) ctx.scale(-1, 1);
 
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    // Ground Contact Shadow + Elemental Aura Ring
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
     ctx.beginPath();
-    ctx.ellipse(0, 42 - bob, 32, 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 86 - bob, 72, 20, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Color based on specialty & stage
-    const spec = digi.specialties[0] || 'Fire';
-    const palette = {
-      Fire: ['#f59e0b', '#dc2626', '#fef08a'],
-      Battle: ['#fb923c', '#991b1b', '#fde047'],
-      Air: ['#38bdf8', '#1d4ed8', '#e0f2fe'],
-      Earth: ['#4ade80', '#15803d', '#fef08a'],
-      Ice: ['#67e8f9', '#0369a1', '#f0f9ff'],
-      Mech: ['#94a3b8', '#334155', '#ef4444'],
-      Filth: ['#a3e635', '#4d7c0f', '#fde047']
-    }[spec] || ['#f59e0b', '#b45309', '#fef08a'];
+    ctx.strokeStyle = palette[3];
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(0, 86 - bob, 82 + Math.sin(tick * 0.1) * 5, 24, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
-    const sizeScale = digi.levelCode === 1 ? 0.65 : (digi.levelCode === 2 ? 0.78 : (digi.levelCode === 3 ? 0.95 : (digi.levelCode === 4 ? 1.15 : 1.25)));
+    const sizeScale = digi.levelCode === 1 ? 1.15 : (digi.levelCode === 2 ? 1.35 : (digi.levelCode === 3 ? 1.65 : (digi.levelCode === 4 ? 1.95 : 2.15)));
     ctx.scale(sizeScale, sizeScale);
 
-    // Body
-    ctx.fillStyle = palette[0];
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 3;
+    // Body with smooth HD gradient
+    const bodyGrad = ctx.createLinearGradient(-26, -26, 26, 28);
+    bodyGrad.addColorStop(0, palette[2]);
+    bodyGrad.addColorStop(0.35, palette[0]);
+    bodyGrad.addColorStop(1, palette[1]);
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = '#090d16';
+    ctx.lineWidth = 2.8;
     ctx.beginPath();
     ctx.roundRect(-24, -22, 48, 48, 14);
     ctx.fill();
     ctx.stroke();
 
-    // Belly / Chest plate
+    // Belly / Armor plate
     ctx.fillStyle = palette[2];
     ctx.beginPath();
     ctx.roundRect(-14, -4, 28, 24, 8);
@@ -411,135 +477,278 @@ function startCanvasLoop() {
       ctx.fillStyle = palette[1];
       ctx.beginPath();
       ctx.moveTo(-18, -22);
-      ctx.lineTo(-28, -42);
+      ctx.lineTo(-30, -44);
       ctx.lineTo(-6, -22);
       ctx.fill();
       ctx.stroke();
 
       ctx.beginPath();
       ctx.moveTo(6, -22);
-      ctx.lineTo(18, -44);
+      ctx.lineTo(20, -46);
       ctx.lineTo(22, -22);
       ctx.fill();
       ctx.stroke();
     } else if (digi.levelCode >= 2) {
       ctx.fillStyle = palette[1];
-      ctx.fillRect(-10, -28, 20, 7);
+      ctx.beginPath();
+      ctx.roundRect(-10, -29, 20, 8, 3);
+      ctx.fill();
+      ctx.stroke();
     }
 
-    // Eyes
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(4, -14, 9, 9);
+    // Crisp HD Eyes with specular highlight
+    ctx.fillStyle = '#090d16';
+    ctx.beginPath();
+    ctx.roundRect(4, -14, 10, 10, 3);
+    ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(8, -13, 4, 4);
+    ctx.fillStyle = palette[2];
+    ctx.fillRect(6, -8, 3, 2);
 
     // Claws / Feet
     ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(-18, 24, 12, 8);
-    ctx.fillRect(8, 24, 12, 8);
+    ctx.beginPath();
+    ctx.roundRect(-18, 24, 13, 8, 3);
+    ctx.roundRect(8, 24, 13, 8, 3);
+    ctx.fill();
+    ctx.stroke();
 
     ctx.restore();
 
-    // Nameplate
-    ctx.fillStyle = 'rgba(6, 10, 20, 0.82)';
-    ctx.fillRect(x - 62, y - 66, 124, 20);
-    ctx.strokeStyle = isEnemy ? '#ef4444' : '#f59e0b';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - 62, y - 66, 124, 20);
+    // Holographic 3D Card Portrait Frame (Extracted from CARD.ALL & 2x EPX HD Upscaled)
+    const fallbackUrl = `/cards/card_${String((digi.id - 1) % 66).padStart(2, '0')}.png`;
+    const cardImg = getCardImage(digi.cardUrl || fallbackUrl);
+    const cardX = isEnemy ? x + 95 : x - 205;
+    const cardY = y - 82;
+    if (cardImg && cardImg.complete && cardImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(6, 10, 20, 0.85)';
+      ctx.strokeStyle = isEnemy ? '#ef4444' : '#fbbf24';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.roundRect(cardX - 4, cardY - 4, 112, 134, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.drawImage(cardImg, cardX, cardY, 104, 126);
+
+      ctx.fillStyle = isEnemy ? 'rgba(239, 68, 68, 0.9)' : 'rgba(245, 158, 11, 0.92)';
+      ctx.fillRect(cardX, cardY + 106, 104, 20);
+      ctx.fillStyle = '#060a14';
+      ctx.font = 'bold 11px Inter, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`3D RENDER • ${digi.modelCode}`, cardX + 52, cardY + 120);
+      ctx.restore();
+    }
+
+    // High-DPI Nameplate Badge
+    ctx.save();
+    ctx.fillStyle = 'rgba(6, 10, 20, 0.88)';
+    ctx.strokeStyle = isEnemy ? '#ef4444' : '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(x - 135, y - 138, 270, 38, 8);
+    ctx.fill();
+    ctx.stroke();
+
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px monospace';
+    ctx.font = 'bold 18px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`${digi.name} [${digi.modelCode}]`, x, y - 52);
+    ctx.fillText(`${digi.name}`, x, y - 119);
+    ctx.fillStyle = isEnemy ? '#fca5a5' : '#fde047';
+    ctx.font = '12px monospace';
+    ctx.fillText(`${digi.level} • ${digi.type} • ${digi.modelFile}`, x, y - 104);
+    ctx.restore();
   }
 
   function render() {
     gameState.animTick++;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const W = canvas.width;  // 1280
+    const H = canvas.height; // 720
+    ctx.clearRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
-    // 1. Area Sky & Terrain
     const area = gameState.area;
-    let skyGrad = ctx.createLinearGradient(0, 0, 0, 180);
-    if (area.includes('Freezeland')) {
-      skyGrad.addColorStop(0, '#0c4a6e');
-      skyGrad.addColorStop(1, '#bae6fd');
-    } else if (area.includes('Ogre') || area.includes('Infinity')) {
-      skyGrad.addColorStop(0, '#1e1b4b');
-      skyGrad.addColorStop(1, '#4c1d95');
+    const bgImg = mapImages[area] || mapImages['File City (Top)'];
+
+    // 1. Draw Authentic Pre-Rendered 3D .TFS Map Background in 720p HD
+    if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
+      // Subtle breathing camera pan across the pre-rendered 3D scene
+      const panX = Math.sin(gameState.animTick * 0.004) * 18;
+      const panY = Math.cos(gameState.animTick * 0.003) * 10;
+      ctx.drawImage(bgImg, -24 + panX, -16 + panY, W + 48, H + 32);
     } else {
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
       skyGrad.addColorStop(0, '#0f172a');
       skyGrad.addColorStop(1, '#1e3a5f');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H);
     }
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, canvas.width, 185);
 
-    // Ground Grid (Digital World wireframe aesthetic)
-    ctx.fillStyle = area.includes('Freezeland') ? '#334155' : (area.includes('Green Gym') ? '#064e3b' : '#14261c');
-    ctx.fillRect(0, 185, canvas.width, 85);
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
-    ctx.lineWidth = 1;
-    for (let gx = 0; gx < canvas.width; gx += 35) {
+    // 2. Dynamic Time-of-Day & Atmospheric Lighting Pass (Day / Sunset / Night)
+    const hr = gameState.hour;
+    if (hr >= 17 && hr < 20) {
+      // Sunset golden-crimson tint
+      ctx.fillStyle = 'rgba(245, 101, 39, 0.18)';
+      ctx.fillRect(0, 0, W, H);
+    } else if (hr >= 20 || hr < 6) {
+      // Night deep cyber-blue tint
+      ctx.fillStyle = 'rgba(8, 18, 48, 0.38)';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Subtle cinematic vignette at bottom for unit legibility
+    const floorGrad = ctx.createLinearGradient(0, H * 0.55, 0, H);
+    floorGrad.addColorStop(0, 'rgba(6, 10, 20, 0)');
+    floorGrad.addColorStop(1, 'rgba(6, 10, 20, 0.72)');
+    ctx.fillStyle = floorGrad;
+    ctx.fillRect(0, H * 0.55, W, H * 0.45);
+
+    // 3. Area-Specific HD Ambient Particles (Snow in Freezeland, Embers in Ogre/Infinity, Fireflies in Forest)
+    const isSnow = area.includes('Freezeland');
+    const isEmber = area.includes('Ogre') || area.includes('Infinity') || area.includes('Arena');
+    ctx.save();
+    ambientParticles.forEach(pt => {
+      pt.x += pt.vx + Math.sin(gameState.animTick * 0.02 + pt.phase) * 0.4;
+      pt.y += isSnow ? Math.abs(pt.vy) * 1.4 : pt.vy;
+      if (pt.y < -10) pt.y = H + 10;
+      if (pt.y > H + 10) pt.y = -10;
+      if (pt.x < -10) pt.x = W + 10;
+      if (pt.x > W + 10) pt.x = -10;
+
+      ctx.fillStyle = isSnow
+        ? `rgba(224, 242, 254, ${pt.alpha})`
+        : (isEmber ? `rgba(251, 146, 60, ${pt.alpha})` : `rgba(167, 243, 208, ${pt.alpha})`);
       ctx.beginPath();
-      ctx.moveTo(gx, 185);
-      ctx.lineTo(gx - 30, 270);
-      ctx.stroke();
-    }
+      ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
 
-    // Draw authentic FI_INFO.TIM clock icon in top-right of canvas
+    // 4. Authentic FI_INFO.TIM Clock Widget & Area Banner in Top Corners
+    ctx.save();
+    ctx.fillStyle = 'rgba(6, 10, 20, 0.82)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(22, 18, 410, 48, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 16px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`📍 ${area}`, 36, 40);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px monospace';
+    ctx.fillText(`Pre-Rendered PS1 .TFS Background • 1280×720 HD`, 36, 57);
+    ctx.restore();
+
     if (timImages.fi.complete && timImages.fi.naturalWidth > 0) {
-      ctx.drawImage(timImages.fi, 208, 26, 48, 38, canvas.width - 56, 8, 48, 38);
+      ctx.drawImage(timImages.fi, 208, 26, 48, 38, W - 115, 16, 88, 70);
     }
 
-    // Draw Partner Digimon
+    // 5. Draw Partner Digimon Unit + 3D Card Portrait
     const partner = getPartner();
     if (partner) {
-      drawDigimonCharacter(145, 175, partner, false, gameState.animTick);
+      drawHdDigimonUnit(385, 485, partner, false, gameState.animTick);
+
+      // Partner HP/MP On-Canvas Bar
+      ctx.save();
+      ctx.fillStyle = 'rgba(6, 10, 20, 0.85)';
+      ctx.strokeStyle = '#24355e';
+      ctx.beginPath();
+      ctx.roundRect(245, 610, 280, 56, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // HP bar
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(257, 622, Math.max(0, (gameState.hp / gameState.maxHp) * 256), 12);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`HP ${gameState.hp}/${gameState.maxHp}`, 262, 632);
+
+      // MP bar
+      ctx.fillStyle = '#06b6d4';
+      ctx.fillRect(257, 642, Math.max(0, (gameState.mp / gameState.maxMp) * 256), 12);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`MP ${gameState.mp}/${gameState.maxMp}`, 262, 652);
+      ctx.restore();
     }
 
-    // Draw Poop if any
+    // 6. Draw Poop Sprites if any
     for (let p = 0; p < gameState.poopCount; p++) {
       if (timImages.btl.complete && timImages.btl.naturalWidth > 0) {
-        ctx.drawImage(timImages.btl, 192, 16, 16, 16, 65 + p * 22, 200, 24, 24);
+        ctx.drawImage(timImages.btl, 192, 16, 16, 16, 130 + p * 46, 545, 44, 44);
       }
     }
 
-    // Draw Enemy in Battle Mode
+    // 7. Draw Enemy in Battle Mode OR Interactive Area Guide Card
     if (gameState.mode === 'battle' && gameState.enemy) {
       const e = gameState.enemy;
-      drawDigimonCharacter(415, 175, e.data, true, gameState.animTick);
+      drawHdDigimonUnit(895, 485, e.data, true, gameState.animTick);
 
-      // Enemy HP Bar
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
-      ctx.fillRect(350, 228, 130, 12);
+      // Enemy HD Health Bar
+      ctx.save();
+      ctx.fillStyle = 'rgba(6, 10, 20, 0.88)';
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(755, 610, 280, 48, 8);
+      ctx.fill();
+      ctx.stroke();
+
       ctx.fillStyle = '#ef4444';
-      ctx.fillRect(352, 230, Math.max(0, (e.hp / e.maxHp) * 126), 8);
+      ctx.fillRect(767, 622, Math.max(0, (e.hp / e.maxHp) * 256), 14);
       ctx.fillStyle = '#ffffff';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`HP ${e.hp}/${e.maxHp}`, 415, 252);
-    } else {
-      // Peaceful area signpost
-      ctx.fillStyle = 'rgba(13, 20, 38, 0.82)';
-      ctx.fillRect(330, 145, 200, 62);
-      ctx.strokeStyle = '#24355e';
-      ctx.strokeRect(330, 145, 200, 62);
-      ctx.fillStyle = '#fbbf24';
-      ctx.font = 'bold 11px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(`📍 ${gameState.area}`, 340, 163);
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px monospace';
-      ctx.fillText('Click [Wild Battle] or any', 340, 180);
-      ctx.fillText('Technique below to fight!', 340, 195);
-    }
-
-    // Floating combat/status texts
-    for (let i = gameState.floatingTexts.length - 1; i >= 0; i--) {
-      const ft = gameState.floatingTexts[i];
-      ctx.fillStyle = ft.color;
       ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(ft.text, ft.x, ft.y);
-      ft.y -= 0.7;
+      ctx.fillText(`WILD ${e.data.name.toUpperCase()} — HP ${e.hp} / ${e.maxHp}`, 895, 650);
+      ctx.restore();
+    } else {
+      // Peaceful Exploration Card on Right Side
+      ctx.save();
+      ctx.fillStyle = 'rgba(6, 10, 20, 0.82)';
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(770, 465, 440, 145, 12);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 18px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`🌟 Exploring ${area}`, 792, 498);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '14px Inter, system-ui, sans-serif';
+      ctx.fillText(`• Partner: ${partner ? partner.name : 'Agumon'} (${partner ? partner.modelFile : 'AGUM.MMD'})`, 792, 526);
+      ctx.fillText(`• Finisher: ${partner && partner.finisher ? partner.finisher : 'Pepper Breath'}`, 792, 550);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText(`Click [⚔️ Wild Battle] or any Technique button to fight!`, 792, 584);
+      ctx.restore();
+    }
+
+    // 8. High-DPI Floating Combat/Status Texts (scaled for 1280×720)
+    for (let i = gameState.floatingTexts.length - 1; i >= 0; i--) {
+      const ft = gameState.floatingTexts[i];
+      // Scale legacy 560x270 coordinates into 1280x720 if needed
+      const drawX = ft.x < 580 ? ft.x * 2.15 : ft.x;
+      const drawY = ft.y < 290 ? ft.y * 2.35 : ft.y;
+      ctx.save();
+      ctx.font = 'bold 26px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.lineWidth = 5;
+      ctx.strokeText(ft.text, drawX, drawY);
+      ctx.fillStyle = ft.color;
+      ctx.fillText(ft.text, drawX, drawY);
+      ctx.restore();
+      ft.y -= 0.75;
       ft.life--;
       if (ft.life <= 0) gameState.floatingTexts.splice(i, 1);
     }
@@ -631,12 +840,19 @@ function renderRomDatabaseTab() {
              d.moves.some(m => m.toLowerCase().includes(q));
     });
 
-    document.getElementById('digimonTableBody').innerHTML = filtered.map(d => `
+    document.getElementById('digimonTableBody').innerHTML = filtered.map(d => {
+      const thumbUrl = d.cardUrl || `/cards/card_${String((d.id - 1) % 66).padStart(2, '0')}.png`;
+      return `
       <tr>
         <td class="mono">#${d.id}</td>
         <td>
-          <strong style="color:#f8fafc;">${d.name}</strong>
-          <div class="mono" style="font-size:0.7rem; color:var(--text-muted);">${d.structOffset}</div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <img src="${thumbUrl}" alt="${d.name}" style="width:38px; height:46px; object-fit:cover; border-radius:6px; border:1px solid rgba(245,158,11,0.45); background:#050811;" />
+            <div>
+              <strong style="color:#f8fafc;">${d.name}</strong>
+              <div class="mono" style="font-size:0.7rem; color:var(--text-muted);">${d.structOffset}</div>
+            </div>
+          </div>
         </td>
         <td class="mono"><span class="badge badge-cyan">${d.modelFile}</span></td>
         <td>${d.level}</td>
@@ -651,7 +867,8 @@ function renderRomDatabaseTab() {
           <button class="nav-btn select-partner-btn" data-id="${d.id}" style="padding:4px 8px; font-size:0.74rem;">Play as ${d.name}</button>
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     document.querySelectorAll('.select-partner-btn').forEach(btn => {
       btn.onclick = () => {
@@ -728,17 +945,101 @@ function renderRomDatabaseTab() {
   // Decoded Textures Grid
   document.getElementById('texturesGrid').innerHTML = DB.textures.map(tex => `
     <div class="texture-card">
-      <img src="${tex.pngUrl}" alt="${tex.name}" class="pixelated" />
+      <img src="${tex.pngUrl}" alt="${tex.name}" />
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <strong class="mono" style="color:#fbbf24;">${tex.name}</strong>
         <span class="badge badge-cyan">${tex.pmode}</span>
       </div>
       <div class="mono" style="font-size:0.74rem; color:var(--text-muted);">
         Path: ${tex.discPath} (LBA ${tex.lba})<br/>
-        Dimensions: ${tex.width}×${tex.height}px • VRAM (${tex.vramX}, ${tex.vramY})
+        Dimensions: ${tex.width}×${tex.height}px (${tex.hdScale || '2x EPX HD'})
       </div>
     </div>
   `).join('');
+
+  // 66 HD Trading Cards (CARD.ALL)
+  function updateCardsGrid() {
+    const q = (document.getElementById('searchCards')?.value || '').toLowerCase();
+    const cardsList = (DB.cards || []).filter(c => {
+      if (!q) return true;
+      return c.digimonName.toLowerCase().includes(q) ||
+             String(c.cardNumber).includes(q) ||
+             (c.specialties || []).some(s => s.toLowerCase().includes(q));
+    });
+    const grid = document.getElementById('cardsGrid');
+    if (!grid) return;
+    grid.innerHTML = cardsList.map(c => `
+      <div class="hd-trading-card">
+        <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+          <span class="badge badge-gold">#${String(c.cardNumber).padStart(2, '0')}</span>
+          <span class="badge badge-cyan">${c.type}</span>
+        </div>
+        <img src="${c.pngUrl}" alt="${c.digimonName}" loading="lazy" />
+        <strong style="color:#f8fafc; font-size:0.88rem; text-align:center;">${c.digimonName}</strong>
+        <div class="mono" style="font-size:0.7rem; color:var(--text-muted); text-align:center;">
+          ${c.level}<br/>${c.resolution} (EPX HD)
+        </div>
+        <button class="nav-btn play-card-digi-btn" data-id="${c.digimonId}" style="width:100%; justify-content:center; padding:5px 8px; font-size:0.74rem;">
+          🎮 Play as ${c.digimonName}
+        </button>
+      </div>
+    `).join('');
+
+    document.querySelectorAll('.play-card-digi-btn').forEach(btn => {
+      btn.onclick = () => {
+        const id = parseInt(btn.dataset.id, 10);
+        gameState.partnerId = id;
+        document.getElementById('partnerSpeciesSelect').value = String(id);
+        updateVpetUI();
+        document.querySelector('[data-tab="tab-vpet"]').click();
+        addLog(`🃏 Selected Bandai 3D Card #${id} — Switched active partner to <strong>${getPartner().name}</strong>!`, '#fbbf24');
+      };
+    });
+  }
+
+  // 9 Pre-Rendered File Island .TFS Maps
+  const mapsGrid = document.getElementById('mapsGrid');
+  if (mapsGrid && DB.maps) {
+    const MAP_ID_TO_AREA = {
+      file_city: 'File City (Top)',
+      jijimon_house: "Jijimon's House",
+      green_gym: 'Green Gym',
+      native_forest: 'Native Forest',
+      dragon_eye_lake: 'Dragon Eye Lake',
+      tropical_jungle: 'Tropical Jungle',
+      freezeland: 'Freezeland',
+      ogre_fortress: 'Ogre Fortress',
+      mt_infinity: 'Mt. Infinity'
+    };
+    mapsGrid.innerHTML = DB.maps.map(m => `
+      <div class="hd-map-card">
+        <img src="${m.pngUrl}" alt="${m.title}" loading="lazy" />
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="color:#fbbf24; font-size:0.95rem;">${m.title}</strong>
+          <span class="badge badge-cyan mono">${m.width}×${m.height}px</span>
+        </div>
+        <div class="mono" style="font-size:0.74rem; color:var(--text-muted);">
+          Disc Path: ${m.discPath} (LBA ${m.lba}) • ${m.palettes} Lighting CLUTs
+        </div>
+        <button class="nav-btn travel-map-btn" data-area="${MAP_ID_TO_AREA[m.id] || 'File City (Top)'}" style="justify-content:center;">
+          🗺️ Travel Here in HD WebUI
+        </button>
+      </div>
+    `).join('');
+
+    document.querySelectorAll('.travel-map-btn').forEach(btn => {
+      btn.onclick = () => {
+        const targetArea = btn.dataset.area;
+        gameState.area = targetArea;
+        gameState.mode = 'field';
+        gameState.enemy = null;
+        document.getElementById('vpetAreaSelect').value = targetArea;
+        document.getElementById('vpetLocationBadge').textContent = targetArea;
+        document.querySelector('[data-tab="tab-vpet"]').click();
+        addLog(`🗺️ Traveled to pre-rendered 3D map: <strong>${targetArea}</strong>!`, '#38bdf8');
+      };
+    });
+  }
 
   document.getElementById('searchDigimon').oninput = updateDigimonTable;
   document.getElementById('filterDigimonStage').onchange = updateDigimonTable;
@@ -747,10 +1048,14 @@ function renderRomDatabaseTab() {
   document.getElementById('filterTechElement').onchange = updateTechTable;
   document.getElementById('searchItem').oninput = updateItemTable;
   document.getElementById('filterItemCat').onchange = updateItemTable;
+  if (document.getElementById('searchCards')) {
+    document.getElementById('searchCards').oninput = updateCardsGrid;
+  }
 
   updateDigimonTable();
   updateTechTable();
   updateItemTable();
+  updateCardsGrid();
 }
 
 // Populate Disc Explorer & Live Sector Hex Viewer
@@ -842,9 +1147,15 @@ async function init() {
     addLog(`🗺️ Traveled to <strong>${gameState.area}</strong>.`, '#38bdf8');
   };
 
-  document.getElementById('toggleCrtBtn').onclick = () => {
-    document.getElementById('vpetViewport').classList.toggle('crt');
-  };
+  const hdShaderSel = document.getElementById('hdShaderSelect');
+  if (hdShaderSel) {
+    hdShaderSel.onchange = (e) => {
+      const vp = document.getElementById('vpetViewport');
+      vp.classList.remove('hd-remaster', 'hd-crisp', 'crt');
+      vp.classList.add(e.target.value);
+      addLog(`✨ Switched Visual Shader Preset to <strong>${e.target.options[e.target.selectedIndex].text}</strong>!`, '#38bdf8');
+    };
+  }
 
   document.getElementById('btnFeedMeat').onclick = () => {
     const p = getPartner();

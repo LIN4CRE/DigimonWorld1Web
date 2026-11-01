@@ -32,26 +32,32 @@
         <div class="panel">
           <div class="panel-header">
             <h2 class="panel-title">
-              <span>🏝️ File Island Interactive WebUI</span>
-              <span class="badge badge-gold" id="vpetLocationBadge">File City — Native Forest</span>
+              <span>🏝️ File Island Interactive HD WebUI</span>
+              <span class="badge badge-gold" id="vpetLocationBadge">File City (Top)</span>
+              <span class="badge badge-cyan">720p HD • .TFS Pre-Rendered 3D</span>
             </h2>
-            <div style="display:flex; gap:8px; align-items:center;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <select id="vpetAreaSelect" class="select-control" title="Travel to File Island Area">
-                <option value="File City (Top)">🏠 File City (Jijimon's House)</option>
-                <option value="Green Gym">🏋️ Green Gym (Training)</option>
-                <option value="Native Forest">🌲 Native Forest (MAYO01.MAP)</option>
-                <option value="Dragon Eye Lake">🎣 Dragon Eye Lake (FISH_REL.BIN)</option>
-                <option value="Tropical Jungle">🌴 Tropical Jungle (TROP00.MAP)</option>
-                <option value="Freezeland">❄️ Freezeland (FRZL16.MAP)</option>
-                <option value="Ogre Fortress">🏰 Ogre Fortress (OGRE10.MAP)</option>
-                <option value="Greymon Arena">⚔️ Greymon Battle Arena (STD_REL.BIN)</option>
-                <option value="Mt. Infinity">⚡ Mt. Infinity (MGEN01.MAP)</option>
+                <option value="File City (Top)">🏙️ File City Top (VILL01.TFS)</option>
+                <option value="Jijimon's House">🏠 Jijimon's House (room10.TFS)</option>
+                <option value="Green Gym">🏋️ Green Gym (TRAI00.TFS)</option>
+                <option value="Native Forest">🌲 Native Forest (MAYO01.TFS)</option>
+                <option value="Dragon Eye Lake">🎣 Dragon Eye Lake (MAYO05.TFS)</option>
+                <option value="Tropical Jungle">🌴 Tropical Jungle (TROP00.TFS)</option>
+                <option value="Freezeland">❄️ Freezeland (FRZL16.TFS)</option>
+                <option value="Ogre Fortress">🏰 Ogre Fortress (OGRE10.TFS)</option>
+                <option value="Greymon Arena">⚔️ Greymon Battle Arena (B_TOGI.TIM)</option>
+                <option value="Mt. Infinity">⚡ Mt. Infinity Core (MGEN01.TFS)</option>
               </select>
-              <button class="nav-btn" id="toggleCrtBtn" title="Toggle CRT Scanlines">📺 CRT</button>
+              <select id="hdShaderSelect" class="select-control" title="HD Visual Quality Preset">
+                <option value="hd-remaster" selected>🌟 HD Remaster (Pre-Rendered 3D + Bloom)</option>
+                <option value="hd-crisp">💎 2x EPX Crisp Pixel HD</option>
+                <option value="crt">📺 Retro PS1 CRT Scanlines</option>
+              </select>
             </div>
           </div>
 
-          <div class="vpet-viewport crt" id="vpetViewport">
+          <div class="vpet-viewport hd-remaster" id="vpetViewport">
             <div class="vpet-hud-top">
               <div>
                 <span style="color:#fbbf24; font-weight:700;" id="hudDigimonName">Agumon</span>
@@ -67,7 +73,7 @@
 
             <div class="vpet-stage">
               <div class="vpet-canvas-wrap">
-                <canvas id="vpetCanvas" width="560" height="270"></canvas>
+                <canvas id="vpetCanvas" width="1280" height="720"></canvas>
               </div>
               <div id="battleControlsBar" style="display:none; margin-top:10px; gap:8px; flex-wrap:wrap; justify-content:center;"></div>
             </div>
@@ -101,6 +107,19 @@
             <div class="panel-header">
               <h2 class="panel-title">📊 Partner Digimon Parameters &amp; ROM Struct</h2>
               <span class="badge badge-cyan mono" id="partnerStructAddr">SLES_029.14 @ 0xA8BBC</span>
+            </div>
+
+            <div class="partner-portrait-card" id="partnerPortraitBox">
+              <img id="partnerCardImg" src="/cards/card_01.png" alt="Partner HD Card Portrait" />
+              <div style="min-width:0; flex:1;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <strong style="font-size:1.05rem; color:#fbbf24;" id="partnerCardTitle">Agumon</strong>
+                  <span class="badge badge-gold" id="partnerCardNumber">CARD.ALL #02 • 2x EPX HD</span>
+                </div>
+                <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px; line-height:1.45;">
+                  Official Bandai 3D-Rendered Portrait extracted from <code>CARD/CARD.ALL</code> &amp; linked via <code>SLES_029.14 @ 0xA46FC</code>.
+                </div>
+              </div>
             </div>
 
             <div class="stat-grid">
@@ -304,6 +323,8 @@
         <div class="panel-header">
           <div class="nav-tabs" id="dbSubNav">
             <button class="nav-btn active" data-subtab="db-digimon">🦖 127 Digimon Structs (0xA8B5C)</button>
+            <button class="nav-btn" data-subtab="db-cards">🃏 66 HD Trading Cards (CARD.ALL)</button>
+            <button class="nav-btn" data-subtab="db-maps">🗺️ 9 Pre-Rendered File Island Maps (.TFS)</button>
             <button class="nav-btn" data-subtab="db-techs">🔥 121 Battle Techniques (0x9FCB8)</button>
             <button class="nav-btn" data-subtab="db-items">🎒 128 Items &amp; Sprites (0xA0A58)</button>
             <button class="nav-btn" data-subtab="db-textures">🖼️ 14 Decoded PS1 .TIM Textures</button>
@@ -422,6 +443,19 @@
         <!-- Subtab: Decoded PS1 .TIM Textures -->
         <div id="db-textures" class="db-subpane" style="display:none;">
           <div class="texture-grid" id="texturesGrid"></div>
+        </div>
+
+        <!-- Subtab: 66 HD Trading Cards (CARD.ALL) -->
+        <div id="db-cards" class="db-subpane" style="display:none;">
+          <div class="search-bar">
+            <input type="text" id="searchCards" class="input-control" placeholder="Search 66 Bandai 3D-Rendered Digimon Cards by name, number, or specialty..." style="flex:1; min-width:240px;" />
+          </div>
+          <div class="hd-card-grid" id="cardsGrid"></div>
+        </div>
+
+        <!-- Subtab: 9 Pre-Rendered File Island .TFS Maps -->
+        <div id="db-maps" class="db-subpane" style="display:none;">
+          <div class="hd-map-grid" id="mapsGrid"></div>
         </div>
       </div>
     </section>

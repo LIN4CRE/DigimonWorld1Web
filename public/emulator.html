@@ -3,36 +3,123 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Digimon World (Europe) - PS1 WebAssembly Emulator</title>
+  <title>Digimon World (Europe) - HD PS1 WebAssembly Emulator</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #060913;
-      color: #e2e8f0;
+      background: #04070f;
+      color: #f1f5f9;
       font-family: system-ui, -apple-system, sans-serif;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .hd-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      background: #0a1020;
+      border-bottom: 1px solid #1e293b;
+      font-size: 0.78rem;
+      z-index: 20;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .hd-badge {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .hd-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .hd-btn {
+      background: #131d36;
+      color: #cbd5e1;
+      border: 1px solid #24355e;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .hd-btn.active {
+      background: rgba(245, 158, 11, 0.22);
+      color: #fbbf24;
+      border-color: #f59e0b;
     }
     #game-container {
+      flex: 1;
       width: 100%;
-      height: 100%;
+      position: relative;
+      transition: filter 0.2s ease;
+    }
+    /* HD Post-Processing Presets */
+    #game-container.hd-vivid {
+      filter: contrast(1.08) saturate(1.18) brightness(1.03);
+    }
+    #game-container.hd-cinema {
+      filter: contrast(1.14) saturate(1.25) drop-shadow(0 0 18px rgba(56, 189, 248, 0.2));
+    }
+    #game-container.hd-sharp canvas {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+    #game-container.hd-smooth canvas {
+      image-rendering: auto;
     }
   </style>
 </head>
 <body>
-  <div id="game-container">
+  <div class="hd-toolbar">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="hd-badge">✨ 2X NEON HD 3D ENHANCED</span>
+      <span style="color:#94a3b8;">24-Bit Undithered Color • Bilinear Texture Smoothing</span>
+    </div>
+    <div class="hd-controls">
+      <span style="color:#94a3b8;">HD Preset:</span>
+      <button class="hd-btn active" onclick="setPreset('hd-vivid hd-smooth', this)">🌟 HD Remaster (Smooth + Vivid)</button>
+      <button class="hd-btn" onclick="setPreset('hd-vivid hd-sharp', this)">💎 Crisp 2x Pixel HD</button>
+      <button class="hd-btn" onclick="setPreset('hd-cinema hd-smooth', this)">🎬 Cinema HDR</button>
+      <button class="hd-btn" onclick="setPreset('', this)">📺 Original PS1</button>
+    </div>
+  </div>
+  <div id="game-container" class="hd-vivid hd-smooth">
     <div id="game"></div>
   </div>
   <script>
+    function setPreset(cls, btn) {
+      document.getElementById('game-container').className = cls;
+      document.querySelectorAll('.hd-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
     EJS_player = '#game';
     EJS_core = 'psx';
-    EJS_gameName = 'Digimon World (Europe) [SLES-02914]';
+    EJS_gameName = 'Digimon World (Europe) [SLES-02914] HD';
     EJS_color = '#f59e0b';
     EJS_startOnLoaded = true;
     EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     EJS_gameUrl = '/rom/Digimon%20World%20(Europe).zip';
+
+    // Enable PCSX-ReARMed 2x Neon High-Resolution 3D Rendering & disable 15-bit dithering!
+    EJS_defaultOptions = {
+      'pcsx_rearmed_neon_enhancement_enable': 'enabled',
+      'pcsx_rearmed_neon_enhancement_no_main': 'disabled',
+      'pcsx_rearmed_dithering': 'disabled',
+      'pcsx_rearmed_duping_enable': 'enabled',
+      'pcsx_rearmed_show_bios_bootlogo': 'disabled'
+    };
   </script>
   <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 </body>

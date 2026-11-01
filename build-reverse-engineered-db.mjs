@@ -8,9 +8,13 @@ const BIN_PATH = path.join(ROOT_DIR, 'rom', 'Digimon World (Europe).bin');
 const OUT_DIR = path.join(ROOT_DIR, 'extracted');
 const PUBLIC_DATA_DIR = path.join(ROOT_DIR, 'public', 'data');
 const PUBLIC_TEX_DIR = path.join(ROOT_DIR, 'public', 'textures');
+const PUBLIC_MAPS_DIR = path.join(ROOT_DIR, 'public', 'maps');
+const PUBLIC_CARDS_DIR = path.join(ROOT_DIR, 'public', 'cards');
 
 fs.mkdirSync(PUBLIC_DATA_DIR, { recursive: true });
 fs.mkdirSync(PUBLIC_TEX_DIR, { recursive: true });
+fs.mkdirSync(PUBLIC_MAPS_DIR, { recursive: true });
+fs.mkdirSync(PUBLIC_CARDS_DIR, { recursive: true });
 
 function readJsonSafe(filePath) {
   const buf = fs.readFileSync(filePath);
@@ -25,7 +29,6 @@ const discIndex = readJsonSafe(path.join(OUT_DIR, 'disc-index.json'));
 const reaZipEvidence = readJsonSafe(path.join(ROOT_DIR, 'rea-zip-evidence.json'));
 const reaDoctor = readJsonSafe(path.join(OUT_DIR, 'rea-doctor.json'));
 
-// Helper: decode Shift-JIS fullwidth string at file offset in SLES_029.14
 function readSjisAt(buf, startOffset) {
   if (startOffset < 0 || startOffset >= buf.length) return '';
   let i = startOffset;
@@ -102,7 +105,18 @@ const LEVEL_NAMES = {
   5: 'Ultimate (Perfect)'
 };
 
-// 1. Parse 121 Techniques (0x9fad0 pointers, 0x9fcb8 16-byte structs)
+// 0. Parse 66-entry Card-to-Digimon mapping at 0xA46FC in SLES_029.14
+const cardToDigimonId = [];
+const digimonIdToCard = {};
+for (let c = 0; c < 66; c++) {
+  const digiId = sles.readUInt32LE(0xA46FC + c * 4) & 0xFF;
+  cardToDigimonId.push(digiId);
+  if (digimonIdToCard[digiId] === undefined) {
+    digimonIdToCard[digiId] = c;
+  }
+}
+
+// 1. Parse 121 Techniques
 const techniques = [];
 for (let id = 0; id < 121; id++) {
   const namePtr = sles.readUInt32LE(0x9fad0 + id * 4);
@@ -110,11 +124,9 @@ for (let id = 0; id < 121; id++) {
   const name = readSjisAt(sles, nameOff) || `Tech #${id}`;
   const stOff = 0x9fcb8 + id * 16;
   const st = sles.subarray(stOff, stOff + 16);
-  const aiDist = st.readUInt32LE(0);
   const power = st.readUInt16LE(4);
   const mpRaw = st[6];
   const mpCost = mpRaw * 3;
-  const frames = st[7];
   const rangeCode = st[8];
   const specCode = st[9];
   const statusCode = st[10];
@@ -141,7 +153,7 @@ for (let id = 0; id < 121; id++) {
   });
 }
 
-// 2. Parse 128 Items (0xa0a58 name ptrs, 0xa0c58 desc ptrs (2 per item = 8 bytes), 0xa1058 color, 0xa1108 handler ptr)
+// 2. Parse 128 Items
 const items = [];
 for (let id = 0; id < 128; id++) {
   const namePtr = sles.readUInt32LE(0xA0A58 + id * 4);
@@ -177,7 +189,7 @@ for (let id = 0; id < 128; id++) {
   });
 }
 
-// 3. Parse 127 Digimon / Entities (0xa8b5c 32-byte structs, 0xaa1dc name pointers, 0xaac0c 8-byte MMD model codes)
+// 3. Parse 127 Digimon / Entities
 const digimonList = [];
 for (let id = 0; id < 128; id++) {
   const namePtr = sles.readUInt32LE(0xAA1DC + id * 4);
@@ -207,8 +219,8 @@ for (let id = 0; id < 128; id++) {
 
   const moves = moveIds.map(mid => techniques[mid]?.name || `Tech #${mid}`);
   const finisher = moveIds.length > 0 ? (techniques[moveIds[moveIds.length - 1]]?.name || null) : null;
-
-  const isPlayablePartner = id >= 1 && id <= 65;
+  const cardIndex = digimonIdToCard[id] !== undefined ? digimonIdToCard[id] : null;
+  const cardUrl = cardIndex !== null ? `/cards/card_${String(cardIndex).padStart(2, '0')}.png` : null;
 
   digimonList.push({
     id,
@@ -228,12 +240,29 @@ for (let id = 0; id < 128; id++) {
     scale,
     moves,
     finisher,
-    isPlayablePartner,
+    cardIndex,
+    cardUrl,
+    isPlayablePartner: id >= 1 && id <= 65,
     rawHex: Array.from(st).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
   });
 }
 
-// 4. Parse Overlay Modules (*_REL.BIN) from disc
+// Build 66 Cards metadata list
+const cards = cardToDigimonId.map((digiId, idx) => {
+  const digi = digimonList[digiId] || digimonList[0];
+  return {
+    cardNumber: idx,
+    cardCode: `#${String(idx).padStart(2, '0')}`,
+    digimonId: digiId,
+    name: idx === 65 ? 'Machinedramon' : digi.name,
+    level: digi.level,
+    type: digi.type,
+    specialty: digi.specialties[0] || 'Special',
+    imageUrl: `/cards/card_${String(idx).padStart(2, '0')}.png`
+  };
+});
+
+// 4. Parse Overlay Modules (*_REL.BIN)
 const OVERLAY_ROLES = {
   'BTL_REL.BIN': '3D Real-Time Battle Engine & AI Controller',
   'STD_REL.BIN': 'Main Field Exploration, File City & NPC Interaction Engine',
@@ -279,7 +308,7 @@ const overlays = discIndex.tree
     };
   });
 
-// 5. Decode PlayStation .TIM textures into PNG files!
+// 5. Decode and 2x EPX HD-Upscale PlayStation .TIM textures
 function writePng(filePath, width, height, rgbaBuffer) {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   function crc32(buf) {
@@ -302,15 +331,11 @@ function writePng(filePath, width, height, rgbaBuffer) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
+  ihdr[8] = 8;
+  ihdr[9] = 6;
   const rawRows = Buffer.alloc(height * (1 + width * 4));
   for (let y = 0; y < height; y++) {
-    rawRows[y * (1 + width * 4)] = 0; // filter type 0
+    rawRows[y * (1 + width * 4)] = 0;
     rgbaBuffer.copy(rawRows, y * (1 + width * 4) + 1, y * width * 4, (y + 1) * width * 4);
   }
   const idatData = zlib.deflateSync(rawRows);
@@ -331,22 +356,52 @@ function bgr555ToRgba(color16, isTransparentZero = true) {
   return [r, g, b, 255];
 }
 
+function upscaleEpx2x(srcRgba, w, h) {
+  const dstW = w * 2;
+  const dstH = h * 2;
+  const dst = Buffer.alloc(dstW * dstH * 4);
+  function getPix(x, y) {
+    const cx = Math.max(0, Math.min(w - 1, x));
+    const cy = Math.max(0, Math.min(h - 1, y));
+    return srcRgba.readUInt32LE((cy * w + cx) * 4);
+  }
+  function setPix(x, y, val) {
+    dst.writeUInt32LE(val, (y * dstW + x) * 4);
+  }
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const P = getPix(x, y);
+      const A = getPix(x, y - 1);
+      const B = getPix(x + 1, y);
+      const C = getPix(x - 1, y);
+      const D = getPix(x, y + 1);
+      let p1 = P, p2 = P, p3 = P, p4 = P;
+      if (C === A && C !== D && A !== B) p1 = A;
+      if (A === B && A !== C && B !== D) p2 = B;
+      if (D === C && D !== B && C !== A) p3 = C;
+      if (B === D && B !== A && D !== C) p4 = D;
+      setPix(x * 2, y * 2, p1);
+      setPix(x * 2 + 1, y * 2, p2);
+      setPix(x * 2, y * 2 + 1, p3);
+      setPix(x * 2 + 1, y * 2 + 1, p4);
+    }
+  }
+  return { width: dstW, height: dstH, rgba: dst };
+}
+
 function decodeTimToPng(timBuf, outPngPath) {
   const magic = timBuf.readUInt32LE(0);
   if (magic !== 0x10) return null;
   const flags = timBuf.readUInt32LE(4);
-  const pmode = flags & 0x07; // 0=4bpp, 1=8bpp, 2=16bpp, 3=24bpp
+  const pmode = flags & 0x07;
   const hasClut = (flags & 0x08) !== 0;
 
   let offset = 8;
   let clut = [];
-  let clutW = 0, clutH = 0;
   if (hasClut) {
     const clutBnum = timBuf.readUInt32LE(offset);
-    const clutX = timBuf.readUInt16LE(offset + 4);
-    const clutY = timBuf.readUInt16LE(offset + 6);
-    clutW = timBuf.readUInt16LE(offset + 8);
-    clutH = timBuf.readUInt16LE(offset + 10);
+    const clutW = timBuf.readUInt16LE(offset + 8);
+    const clutH = timBuf.readUInt16LE(offset + 10);
     const numColors = clutW * clutH;
     for (let i = 0; i < numColors; i++) {
       clut.push(timBuf.readUInt16LE(offset + 12 + i * 2));
@@ -354,7 +409,6 @@ function decodeTimToPng(timBuf, outPngPath) {
     offset += clutBnum;
   }
 
-  const imgBnum = timBuf.readUInt32LE(offset);
   const vramX = timBuf.readUInt16LE(offset + 4);
   const vramY = timBuf.readUInt16LE(offset + 6);
   const wordW = timBuf.readUInt16LE(offset + 8);
@@ -364,12 +418,10 @@ function decodeTimToPng(timBuf, outPngPath) {
   let width = wordW;
   if (pmode === 0) width = wordW * 4;
   else if (pmode === 1) width = wordW * 2;
-  else if (pmode === 2) width = wordW;
 
   const rgba = Buffer.alloc(width * height * 4);
   const isItemSheet = outPngPath.endsWith('ITEM.png');
   if (pmode === 0) {
-    // 4bpp
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x += 2) {
         const byte = timBuf[dataStart + (y * (width / 2)) + (x / 2)];
@@ -390,7 +442,6 @@ function decodeTimToPng(timBuf, outPngPath) {
       }
     }
   } else if (pmode === 1) {
-    // 8bpp
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = timBuf[dataStart + y * width + x];
@@ -400,7 +451,6 @@ function decodeTimToPng(timBuf, outPngPath) {
       }
     }
   } else if (pmode === 2) {
-    // 16bpp direct
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const c16 = timBuf.readUInt16LE(dataStart + (y * width + x) * 2);
@@ -411,11 +461,22 @@ function decodeTimToPng(timBuf, outPngPath) {
     }
   }
 
-  writePng(outPngPath, width, height, rgba);
+  // Keep ITEM.png at 1x exact grid for CSS sprite-sheet coordinates, and also create HD 2x EPX versions for all textures!
+  if (isItemSheet) {
+    writePng(outPngPath, width, height, rgba);
+    const hd2x = upscaleEpx2x(rgba, width, height);
+    writePng(outPngPath.replace('ITEM.png', 'ITEM_HD.png'), hd2x.width, hd2x.height, hd2x.rgba);
+  } else {
+    const hd2x = upscaleEpx2x(rgba, width, height);
+    writePng(outPngPath, hd2x.width, hd2x.height, hd2x.rgba);
+  }
+
   return {
-    pmode: pmode === 0 ? '4-bpp CLUT' : (pmode === 1 ? '8-bpp CLUT' : '16-bpp Direct BGR555'),
-    width,
-    height,
+    pmode: pmode === 0 ? '4-bpp CLUT (2x HD EPX)' : (pmode === 1 ? '8-bpp CLUT (2x HD EPX)' : '16-bpp Direct (2x HD EPX)'),
+    width: isItemSheet ? width : width * 2,
+    height: isItemSheet ? height : height * 2,
+    nativeWidth: width,
+    nativeHeight: height,
     vramX,
     vramY,
     clutColors: clut.length
@@ -460,6 +521,18 @@ for (const relPath of timTargets) {
 }
 
 fs.closeSync(binFd);
+
+const mapsList = [
+  { key: 'file_city', file: 'TWNA02.TFS', area: 'File City (Top)', url: '/maps/file_city.png', resolution: '768×640 Pre-Rendered 3D' },
+  { key: 'jijimon_house', file: 'ROOM10.TFS', area: 'Jijimon\'s House', url: '/maps/jijimon_house.png', resolution: '512×384 Pre-Rendered 3D' },
+  { key: 'green_gym', file: 'TWNA08.TFS', area: 'Green Gym', url: '/maps/green_gym.png', resolution: '768×640 Pre-Rendered 3D' },
+  { key: 'native_forest', file: 'MAYO01.TFS', area: 'Native Forest', url: '/maps/native_forest.png', resolution: '768×640 Pre-Rendered 3D' },
+  { key: 'dragon_eye_lake', file: 'MIHA01.TFS', area: 'Dragon Eye Lake', url: '/maps/dragon_eye_lake.png', resolution: '1280×384 Pre-Rendered Panorama' },
+  { key: 'tropical_jungle', file: 'TROP00.TFS', area: 'Tropical Jungle', url: '/maps/tropical_jungle.png', resolution: '640×384 Pre-Rendered 3D' },
+  { key: 'freezeland', file: 'FRZL16.TFS', area: 'Freezeland', url: '/maps/freezeland.png', resolution: '640×768 Pre-Rendered 3D' },
+  { key: 'ogre_fortress', file: 'OGRE10.TFS', area: 'Ogre Fortress', url: '/maps/ogre_fortress.png', resolution: '640×384 Pre-Rendered 3D' },
+  { key: 'mt_infinity', file: 'MGEN01.TFS', area: 'Mt. Infinity', url: '/maps/mt_infinity.png', resolution: '768×640 Pre-Rendered 3D' }
+];
 
 // 6. PS-X EXE & MIPS Disassembly Summary
 const REG_NAMES = [
@@ -572,8 +645,10 @@ const fullDb = {
   digimon: digimonList,
   techniques,
   items,
+  cards,
+  maps: mapsList,
   textures: decodedTextures
 };
 
 fs.writeFileSync(path.join(PUBLIC_DATA_DIR, 'reverse-engineered-db.json'), JSON.stringify(fullDb, null, 2));
-console.log('Successfully generated reverse-engineered-db.json and decoded', decodedTextures.length, 'PS1 .TIM textures to PNG!');
+console.log('Successfully generated HD reverse-engineered-db.json with 66 cards, 9 TFS maps, and 2x HD EPX TIM textures!');
