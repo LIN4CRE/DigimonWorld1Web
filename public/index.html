@@ -3,512 +3,455 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Digimon World (Europe) [SLES_029.14] — Reverse-Engineered WebUI</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <title>Digimon World (Europe) — Playable HD Web Edition (127 Digimon Unlocked)</title>
+  <style>
+    :root {
+      --bg-dark: #04070f;
+      --bg-bar: #0a1020;
+      --bg-card: #131d36;
+      --border: #24355e;
+      --accent-gold: #f59e0b;
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-bar);
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      flex-wrap: wrap;
+      z-index: 30;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand img {
+      width: 44px;
+      height: 34px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 1px solid var(--accent-gold);
+    }
+
+    .brand-title {
+      font-weight: 800;
+      font-size: 0.92rem;
+      letter-spacing: 0.02em;
+      background: linear-gradient(90deg, #fbbf24, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-sub {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .select-ctrl {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      outline: none;
+      max-width: 280px;
+    }
+
+    .select-ctrl:focus {
+      border-color: var(--accent-gold);
+    }
+
+    .btn {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 7px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      border-color: var(--accent-gold);
+      color: #fbbf24;
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(234, 88, 12, 0.25));
+      border-color: var(--accent-gold);
+      color: #fbbf24;
+    }
+
+    .btn-cyan {
+      background: rgba(6, 182, 212, 0.18);
+      border-color: rgba(6, 182, 212, 0.5);
+      color: #22d3ee;
+    }
+
+    .btn-green {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: rgba(16, 185, 129, 0.5);
+      color: #34d399;
+    }
+
+    .status-toast {
+      font-family: monospace;
+      font-size: 0.74rem;
+      color: #34d399;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      display: none;
+    }
+
+    #game-container {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: #000;
+      transition: filter 0.2s ease;
+    }
+
+    #game {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* HD Post-Processing Presets */
+    #game-container.hd-vivid {
+      filter: contrast(1.08) saturate(1.18) brightness(1.03);
+    }
+    #game-container.hd-cinema {
+      filter: contrast(1.14) saturate(1.25) drop-shadow(0 0 18px rgba(56, 189, 248, 0.2));
+    }
+    #game-container.hd-sharp canvas {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+    #game-container.hd-smooth canvas {
+      image-rendering: auto;
+    }
+  </style>
 </head>
 <body>
-  <header class="top-header">
+  <header class="top-bar">
     <div class="brand">
-      <img src="/textures/TITLE256.png" alt="Digimon World Title TIM" class="brand-logo pixelated" />
-      <div class="brand-title">
-        <h1>DIGIMON WORLD (EUROPE) — WEBUI &amp; REA WORKBENCH</h1>
-        <div class="brand-subtitle">SLES_029.14 • MIPS R3000A • ISO9660 MODE2/2352 • REA v6.7.0 VERIFIED</div>
+      <img src="/textures/TITLE256.png" alt="Digimon World" />
+      <div>
+        <div class="brand-title">DIGIMON WORLD (EUROPE) — HD UNLOCKED EDITION</div>
+        <div class="brand-sub">SLES-02914 Patched ROM • All 127 Digimon (Overworld, Bosses &amp; Cut Ultimates) Playable</div>
       </div>
     </div>
-    <nav class="nav-tabs" id="mainNav">
-      <button class="nav-btn active" data-tab="tab-vpet">🎮 Play File Island WebUI</button>
-      <button class="nav-btn" data-tab="tab-ps1-emu">💿 Full PS1 ROM Emulator</button>
-      <button class="nav-btn" data-tab="tab-rea">🔬 REA &amp; MIPS Disassembler</button>
-      <button class="nav-btn" data-tab="tab-rom-db">📚 Extracted ROM Database</button>
-      <button class="nav-btn" data-tab="tab-disc">🗂️ Disc Explorer &amp; Hex Viewer</button>
-    </nav>
+
+    <!-- Live Partner Digimon Unlocker (Injects into PS1 RAM 0x8013BFE0) -->
+    <div class="controls-group">
+      <label for="partnerSelect" style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">🦖 Own / Digivolve To:</label>
+      <select id="partnerSelect" class="select-ctrl" title="Choose any of the 127 Digimon on the disc (including Overworld & Boss Digimon)">
+        <optgroup label="🔥 Cut &amp; Hidden Ultimates (#62-#65)">
+          <option value="63">★ #63 Panjyamon (PANJ.MMD • Fist of Beast King)</option>
+          <option value="64">★ #64 Gigadramon (GGDR.MMD • Genocide Attack)</option>
+          <option value="65">★ #65 MetalEtemon (MTET.MMD • Dark Concert Crush)</option>
+          <option value="62">★ #62 WereGarurumon (Restored Slot)</option>
+        </optgroup>
+        <optgroup label="👹 Overworld, Wild &amp; Boss Digimon (#66-#127)">
+          <option value="115" selected>⚡ #115 Machinedramon (MUGE.MMD • Infinity Cannon)</option>
+          <option value="66">🧛 #66 Myotismon (VAND.MMD • Aurora Freeze)</option>
+          <option value="70">🐻 #70 WaruMonzaemon (WARU.MMD • Thunder Bolt)</option>
+          <option value="76">🚜 #76 Tankmon (TANK.MMD • Buster Dive)</option>
+          <option value="92">🤖 #92 Guardromon (GARD.MMD • Full Power)</option>
+          <option value="111">🐞 #111 Tentomon (TENT.MMD • Moss Shield)</option>
+          <option value="112">🐍 #112 WaruSeadramon (WRSE.MMD • Confusion Storm)</option>
+          <option value="104">🔥 #104 BlueMeramon (BLMR.MMD • Ice Statue)</option>
+          <option value="100">😈 #100 IceDevimon (ICDV.MMD • Ice Statue)</option>
+          <option value="84">🧱 #84 ToyAgumon (TOYA.MMD • Pepper Breath)</option>
+          <option value="98">💎 #98 ClearAgumon (CLEA.MMD • Pepper Breath)</option>
+          <option value="71">❄️ #71 SnowAgumon (YKAG.MMD • Muscle Charge)</option>
+          <option value="85">👼 #85 Piddomon (PIDD.MMD • Hurricane)</option>
+          <option value="88">🦖 #88 Vermilimon (VARM.MMD • Volcanic Strike)</option>
+          <option value="90">⚔️ #90 Tekkamon (TKKA.MMD • Full Power)</option>
+          <option value="108">🪨 #108 Rockmon (GOLE.MMD • Aurora Freeze)</option>
+          <option value="113">☄️ #113 Meteormon (INSE.MMD • Tremor)</option>
+          <option value="68">🪨 #68 Gotsumon (GOTU.MMD • Tremor)</option>
+          <option value="69">🦎 #69 Flarerizamon (FLAR.MMD • Red Inferno)</option>
+          <option value="101">🦎 #101 Darkrizamon (DKRZ.MMD • Winter Blast)</option>
+          <option value="72">👹 #72 Hyogamon (HYOG.MMD • War Cry)</option>
+          <option value="89">👹 #89 Fugamon (FUGA.MMD • Hurricane)</option>
+          <option value="73">👑 #73 PlatinumSukamon (PCSC.MMD • Ult Poop Bomb)</option>
+          <option value="75">🦄 #75 ShimaUnimon (SIMA.MMD • Electric Cloud)</option>
+          <option value="81">🐻 #81 MudFrigimon (TUTI.MMD • Aqua Magic)</option>
+          <option value="82">🐺 #82 Psychemon (PSYC.MMD • War Cry)</option>
+          <option value="105">🐺 #105 Gururumon (GRUR.MMD • Winter Blast)</option>
+          <option value="106">🦅 #106 Saberdramon (SABD.MMD • Hurricane)</option>
+          <option value="107">👻 #107 Soulmon (SOUL.MMD • Dark Claw)</option>
+          <option value="109">🐸 #109 Otamamon (OTAM.MMD • Water Blitz)</option>
+          <option value="110">🐸 #110 Gekomon (GECO.MMD • Winter Blast)</option>
+          <option value="96">🦇 #96 Tsukaimon (TUKA.MMD • Spinning Shot)</option>
+          <option value="80">👺 #80 Goburimon (GOBR.MMD • Winter Blast)</option>
+          <option value="103">❄️ #103 SnowGoburimon (SNGB.MMD • Winter Blast)</option>
+          <option value="97">👺 #97 Sharmamon (SHAM.MMD • War Cry)</option>
+          <option value="67">🐝 #67 Yanmamon (YANM.MMD • Insect Plague)</option>
+          <option value="102">🐝 #102 SandYanmamon (SNDY.MMD • Hurricane)</option>
+          <option value="74">🐛 #74 Dokunemon (DOKU.MMD • Electric Thread)</option>
+          <option value="86">🌸 #86 Aruraumon (ARUR.MMD • Water Blitz)</option>
+          <option value="91">🐚 #91 MoriShellmon (MRIS.MMD • Aqua Magic)</option>
+          <option value="93">🐧 #93 Muchomon (MCHO.MMD • Super Slap)</option>
+          <option value="94">🧊 #94 Icemon (ICEM.MMD • Ice Needle)</option>
+          <option value="95">🐔 #95 Akatorimon (AKAT.MMD • Confusion Storm)</option>
+          <option value="78">🦍 #78 J-Mojyamon (JMOJ.MMD • Moss Shield)</option>
+          <option value="79">🔩 #79 NiseDrimogemon (NISE.MMD • Muscle Charge)</option>
+          <option value="83">🦎 #83 ModokiBetamon (MODO.MMD • Electric Shock)</option>
+          <option value="77">🌱 #77 RedVegiemon (REDV.MMD • Moss Shield)</option>
+          <option value="99">🌱 #99 Weedmon (ZASS.MMD • Moss Shield)</option>
+          <option value="87">🐌 #87 Geremon (GERE.MMD • Feces For Numemon)</option>
+          <option value="121">🌳 #121 Cherrymon (JURE.MMD • Overworld Boss)</option>
+          <option value="122">⚙️ #122 Hagurumon (HAGU.MMD • Overworld NPC)</option>
+          <option value="123">🤖 #123 Tinmon (BRIK.MMD • Overworld NPC)</option>
+          <option value="124">🦖 #124 Master Tyrannomon (TIRS.MMD • Overworld NPC)</option>
+          <option value="126">🦕 #126 Brachiomon (BRAK.MMD • Overworld NPC)</option>
+        </optgroup>
+        <optgroup label="🏆 Classic Partner Ultimates &amp; Champions (#1-#61)">
+          <option value="12">#12 MetalGreymon (MTLG.MMD)</option>
+          <option value="26">#26 SkullGreymon (SKLG.MMD)</option>
+          <option value="54">#54 Megadramon (MGDR.MMD)</option>
+          <option value="59">#59 Phoenixmon (HOOU.MMD)</option>
+          <option value="60">#60 HerculesKabuterimon (HKAB.MMD)</option>
+          <option value="61">#61 MegaSeadramon (MGSD.MMD)</option>
+          <option value="40">#40 Andromon (ANDR.MMD)</option>
+          <option value="14">#14 Monzaemon (MONZ.MMD)</option>
+          <option value="13">#13 Mamemon (MAME.MMD)</option>
+          <option value="27">#27 MetalMamemon (MTMM.MMD)</option>
+          <option value="41">#41 Giromon (GIRO.MMD)</option>
+          <option value="55">#55 Piximon (PIXI.MMD)</option>
+          <option value="28">#28 Vademon (VADE.MMD)</option>
+          <option value="42">#42 Etemon (ETEM.MMD)</option>
+          <option value="56">#56 Digitamamon (DGTM.MMD)</option>
+          <option value="5">#5 Greymon (GREY.MMD)</option>
+          <option value="6">#6 Devimon (DEVI.MMD)</option>
+          <option value="7">#7 Airdramon (AIRD.MMD)</option>
+          <option value="8">#8 Tyrannomon (TYRA.MMD)</option>
+          <option value="9">#9 Meramon (MERA.MMD)</option>
+          <option value="10">#10 Seadramon (SEAD.MMD)</option>
+          <option value="19">#19 Kabuterimon (KABU.MMD)</option>
+          <option value="20">#20 Angemon (ANGE.MMD)</option>
+          <option value="21">#21 Birdramon (BIRD.MMD)</option>
+          <option value="22">#22 Garurumon (GARU.MMD)</option>
+          <option value="23">#23 Frigimon (FRIG.MMD)</option>
+          <option value="24">#24 Whamon (WHAM.MMD)</option>
+          <option value="33">#33 Unimon (UNIM.MMD)</option>
+          <option value="34">#34 Ogremon (OGRE.MMD)</option>
+          <option value="36">#36 Centarumon (CENT.MMD)</option>
+          <option value="37">#37 Bakemon (BAKE.MMD)</option>
+          <option value="38">#38 Drimogemon (DRIM.MMD)</option>
+          <option value="47">#47 Monochromon (MONO.MMD)</option>
+          <option value="48">#48 Leomon (LEOM.MMD)</option>
+          <option value="49">#49 Coelamon (COEL.MMD)</option>
+          <option value="50">#50 Kokatorimon (KOKA.MMD)</option>
+          <option value="51">#51 Kuwagamon (KUWA.MMD)</option>
+          <option value="52">#52 Mojyamon (MOJY.MMD)</option>
+          <option value="58">#58 Ninjamon (IGAM.MMD)</option>
+          <option value="3">#3 Agumon (AGUM.MMD)</option>
+          <option value="17">#17 Gabumon (GABU.MMD)</option>
+          <option value="31">#31 Patamon (PATA.MMD)</option>
+          <option value="45">#45 Biyomon (PIYO.MMD)</option>
+          <option value="46">#46 Palmon (PALM.MMD)</option>
+          <option value="4">#4 Betamon (BETA.MMD)</option>
+          <option value="18">#18 Elecmon (ELEC.MMD)</option>
+          <option value="32">#32 Kunemon (KUNE.MMD)</option>
+          <option value="57">#57 Penguinmon (PENG.MMD)</option>
+        </optgroup>
+      </select>
+
+      <button class="btn btn-gold" id="btnDigivolveNow" title="Trigger in-game 3D Digivolution into the selected Digimon (Must be standing on any field map)">
+        ✨ Digivolve Partner Now
+      </button>
+      <button class="btn btn-green" id="btnMaxStats" title="Set Partner HP/MP to 9999, Offense/Defense/Speed/Brains to 999, and unlock all 121 moves">
+        ⚡ Max 999 Stats &amp; Moves
+      </button>
+      <span class="status-toast" id="statusToast"></span>
+    </div>
+
+    <!-- HD Quality Preset Selector -->
+    <div class="controls-group">
+      <select id="hdPresetSelect" class="select-ctrl" style="max-width:195px;" title="HD Visual Enhancement Mode">
+        <option value="hd-vivid hd-smooth" selected>🌟 2x Neon HD Remaster</option>
+        <option value="hd-vivid hd-sharp">💎 Crisp 2x Pixel HD</option>
+        <option value="hd-cinema hd-smooth">🎬 Cinema HDR</option>
+        <option value="">📺 Original PS1</option>
+      </select>
+    </div>
   </header>
 
-  <main class="main-container">
-    <!-- TAB 1: NATIVE BROWSER EDITION (V-PET, GREEN GYM & BATTLE ARENA) -->
-    <section id="tab-vpet" class="tab-pane active">
-      <div class="grid-2">
-        <!-- Left Column: Interactive Canvas Viewport + Action Bar -->
-        <div class="panel">
-          <div class="panel-header">
-            <h2 class="panel-title">
-              <span>🏝️ File Island Interactive HD WebUI</span>
-              <span class="badge badge-gold" id="vpetLocationBadge">File City (Top)</span>
-              <span class="badge badge-cyan">720p HD • .TFS Pre-Rendered 3D</span>
-            </h2>
-            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-              <select id="vpetAreaSelect" class="select-control" title="Travel to File Island Area">
-                <option value="File City (Top)">🏙️ File City Top (VILL01.TFS)</option>
-                <option value="Jijimon's House">🏠 Jijimon's House (room10.TFS)</option>
-                <option value="Green Gym">🏋️ Green Gym (TRAI00.TFS)</option>
-                <option value="Native Forest">🌲 Native Forest (MAYO01.TFS)</option>
-                <option value="Dragon Eye Lake">🎣 Dragon Eye Lake (MAYO05.TFS)</option>
-                <option value="Tropical Jungle">🌴 Tropical Jungle (TROP00.TFS)</option>
-                <option value="Freezeland">❄️ Freezeland (FRZL16.TFS)</option>
-                <option value="Ogre Fortress">🏰 Ogre Fortress (OGRE10.TFS)</option>
-                <option value="Greymon Arena">⚔️ Greymon Battle Arena (B_TOGI.TIM)</option>
-                <option value="Mt. Infinity">⚡ Mt. Infinity Core (MGEN01.TFS)</option>
-              </select>
-              <select id="hdShaderSelect" class="select-control" title="HD Visual Quality Preset">
-                <option value="hd-remaster" selected>🌟 HD Remaster (Pre-Rendered 3D + Bloom)</option>
-                <option value="hd-crisp">💎 2x EPX Crisp Pixel HD</option>
-                <option value="crt">📺 Retro PS1 CRT Scanlines</option>
-              </select>
-            </div>
-          </div>
+  <div id="game-container" class="hd-vivid hd-smooth">
+    <div id="game"></div>
+  </div>
 
-          <div class="vpet-viewport hd-remaster" id="vpetViewport">
-            <div class="vpet-hud-top">
-              <div>
-                <span style="color:#fbbf24; font-weight:700;" id="hudDigimonName">Agumon</span>
-                <span class="badge badge-cyan" id="hudStage">Rookie (Child)</span>
-                <span class="badge badge-purple" id="hudType">Vaccine</span>
-              </div>
-              <div style="display:flex; gap:14px;">
-                <span>🕒 <strong id="hudClock">Day 1 • 12:00 (Day)</strong></span>
-                <span>💰 <strong id="hudBits" style="color:#fbbf24;">1,500</strong> Bits</span>
-                <span>🏅 Prosperity: <strong id="hudProsperity" style="color:#34d399;">12</strong></span>
-              </div>
-            </div>
+  <script>
+    function showToast(msg, color = '#34d399') {
+      const el = document.getElementById('statusToast');
+      el.textContent = msg;
+      el.style.color = color;
+      el.style.display = 'inline-block';
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4500);
+    }
 
-            <div class="vpet-stage">
-              <div class="vpet-canvas-wrap">
-                <canvas id="vpetCanvas" width="1280" height="720"></canvas>
-              </div>
-              <div id="battleControlsBar" style="display:none; margin-top:10px; gap:8px; flex-wrap:wrap; justify-content:center;"></div>
-            </div>
+    document.getElementById('hdPresetSelect').onchange = (e) => {
+      document.getElementById('game-container').className = e.target.value;
+    };
 
-            <div class="vpet-action-bar">
-              <button class="action-btn primary" id="btnFeedMeat">🍖 Feed Meat</button>
-              <button class="action-btn" id="btnTrainGym">🏋️ Train Stat</button>
-              <button class="action-btn" id="btnPraise">🎵 Praise</button>
-              <button class="action-btn" id="btnRest">💤 Rest / Sleep</button>
-              <button class="action-btn" id="btnCleanPoop">🚽 Potty / Clean</button>
-              <button class="action-btn primary" id="btnExploreBattle">⚔️ Wild Battle</button>
-              <button class="action-btn" id="btnDigivolveNow">✨ Digivolve</button>
-            </div>
-          </div>
+    // Locate the 2MB PS1 RAM base offset inside the EmulatorJS WebAssembly HEAPU8
+    // by matching the exact instruction signature of SLES_029.14 @ 0x800AA93C (offset 0x000AA93C in PS1 RAM):
+    // EC 93 82 87 (lh $v0, -27668($gp)) | FF FF 01 24 (addiu $at, $zero, -1) | 0B 00 41 10 (beq $v0, $at, +11)
+    let cachedPs1RamBase = -1;
+    function findPs1RamBase() {
+      const mod = window.EJS_emulator && window.EJS_emulator.gameManager && window.EJS_emulator.gameManager.Module;
+      if (!mod || !mod.HEAPU8) return -1;
+      const heap = mod.HEAPU8;
+      const sig = [0xEC, 0x93, 0x82, 0x87, 0xFF, 0xFF, 0x01, 0x24, 0x0B, 0x00, 0x41, 0x10, 0x00, 0x00, 0x00, 0x00];
 
-          <div style="margin-top:14px;">
-            <div class="panel-header" style="margin-bottom:8px; padding-bottom:6px;">
-              <span class="panel-title" style="font-size:0.86rem;">📜 Live Engine Event Log (Backed by SLES_029.14 Structs)</span>
-              <div style="display:flex; gap:8px; align-items:center;">
-                <span style="font-size:0.76rem; color:var(--text-muted);">Switch Partner Species (0xA8B5C):</span>
-                <select id="partnerSpeciesSelect" class="select-control"></select>
-              </div>
-            </div>
-            <div class="log-box" id="vpetLog"></div>
-          </div>
-        </div>
+      // Check cached base first
+      if (cachedPs1RamBase >= 0 && cachedPs1RamBase + 0x200000 <= heap.length) {
+        let ok = true;
+        for (let k = 0; k < sig.length; k++) {
+          if (heap[cachedPs1RamBase + 0xAA93C + k] !== sig[k]) { ok = false; break; }
+        }
+        if (ok) return cachedPs1RamBase;
+      }
 
-        <!-- Right Column: Partner Parameters, Moves, and Item Bag (with real ITEM.TIM sprites!) -->
-        <div style="display:flex; flex-direction:column; gap:18px;">
-          <div class="panel">
-            <div class="panel-header">
-              <h2 class="panel-title">📊 Partner Digimon Parameters &amp; ROM Struct</h2>
-              <span class="badge badge-cyan mono" id="partnerStructAddr">SLES_029.14 @ 0xA8BBC</span>
-            </div>
+      const limit = heap.length - 0x150000;
+      for (let i = 0xAA93C; i < limit; i += 4) {
+        if (
+          heap[i] === 0xEC && heap[i + 1] === 0x93 && heap[i + 2] === 0x82 && heap[i + 3] === 0x87 &&
+          heap[i + 4] === 0xFF && heap[i + 5] === 0xFF && heap[i + 6] === 0x01 && heap[i + 7] === 0x24 &&
+          heap[i + 8] === 0x0B && heap[i + 9] === 0x00 && heap[i + 10] === 0x41 && heap[i + 11] === 0x10
+        ) {
+          cachedPs1RamBase = i - 0xAA93C;
+          return cachedPs1RamBase;
+        }
+      }
+      return -1;
+    }
 
-            <div class="partner-portrait-card" id="partnerPortraitBox">
-              <img id="partnerCardImg" src="/cards/card_01.png" alt="Partner HD Card Portrait" />
-              <div style="min-width:0; flex:1;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="font-size:1.05rem; color:#fbbf24;" id="partnerCardTitle">Agumon</strong>
-                  <span class="badge badge-gold" id="partnerCardNumber">CARD.ALL #02 • 2x EPX HD</span>
-                </div>
-                <div style="font-size:0.78rem; color:var(--text-muted); margin-top:4px; line-height:1.45;">
-                  Official Bandai 3D-Rendered Portrait extracted from <code>CARD/CARD.ALL</code> &amp; linked via <code>SLES_029.14 @ 0xA46FC</code>.
-                </div>
-              </div>
-            </div>
+    function writeU16(heap, base, ps1Offset, val) {
+      heap[base + ps1Offset] = val & 0xFF;
+      heap[base + ps1Offset + 1] = (val >>> 8) & 0xFF;
+    }
 
-            <div class="stat-grid">
-              <div class="stat-box">
-                <div class="stat-label"><span>HP (Hit Points)</span><span class="stat-value" id="statHpVal">1200 / 1200</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statHpBar" style="width:100%; background:#10b981;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>MP (Magic Points)</span><span class="stat-value" id="statMpVal">900 / 900</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statMpBar" style="width:100%; background:#06b6d4;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>⚔️ Offense</span><span class="stat-value" id="statOffVal">145 / 999</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statOffBar" style="width:15%; background:#ef4444;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>🛡️ Defense</span><span class="stat-value" id="statDefVal">120 / 999</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statDefBar" style="width:12%; background:#f59e0b;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>⚡ Speed</span><span class="stat-value" id="statSpdVal">115 / 999</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statSpdBar" style="width:12%; background:#38bdf8;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>🧠 Brains</span><span class="stat-value" id="statBrnVal">130 / 999</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statBrnBar" style="width:13%; background:#a855f7;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>😊 Happiness / Discipline</span><span class="stat-value" id="statHapVal">85% / 75%</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statHapBar" style="width:85%; background:#fbbf24;"></div></div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-label"><span>⚖️ Weight / Tiredness</span><span class="stat-value" id="statWgtVal">20G • 10% Fatigue</span></div>
-                <div class="progress-track"><div class="progress-fill" id="statFatigueBar" style="width:10%; background:#f43f5e;"></div></div>
-              </div>
-            </div>
+    // Trigger Live 3D In-Game Digivolution into any Digimon #1..#127
+    document.getElementById('btnDigivolveNow').onclick = () => {
+      const targetId = parseInt(document.getElementById('partnerSelect').value, 10);
+      const selText = document.getElementById('partnerSelect').selectedOptions[0].text;
+      const base = findPs1RamBase();
+      const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
 
-            <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; font-size:0.8rem; background:var(--bg-card); padding:10px 12px; border-radius:8px; border:1px solid var(--border);">
-              <div><strong>3D Model:</strong> <span class="mono" id="partnerModelCode">AGUM.MMD</span></div>
-              <div><strong>Specialties:</strong> <span id="partnerSpecs">Fire, Battle</span></div>
-              <div><strong>Finisher:</strong> <span style="color:#fbbf24; font-weight:700;" id="partnerFinisher">Pepper Breath</span></div>
-              <div><strong>Wild Drop:</strong> <span id="partnerDrop">sm recovery (50%)</span></div>
-            </div>
+      if (base >= 0) {
+        const heap = gm.Module.HEAPU8;
+        // Write Target Digimon ID to 0x8013BFE0 (-27668($gp)) and Item Evo Flag = 1 to 0x8013BFE2 (-27666($gp))
+        writeU16(heap, base, 0x13BFE0, targetId);
+        heap[base + 0x13BFE2] = 1;
+        // Clear Virus/Poop gauge so it doesn't override with Sukamon
+        writeU16(heap, base, 0x13FA46, 0);
+        showToast(`✨ Digivolving into ${selText}! (Stand on any field map)`, '#fbbf24');
+      } else if (gm && typeof gm.toggleCheat === 'function') {
+        const hexId = targetId.toString(16).toUpperCase().padStart(4, '0');
+        const code = `8013BFE0 ${hexId}\n3013BFE2 0001`;
+        gm.toggleCheat('live_evo', code);
+        setTimeout(() => {
+          gm.toggleCheat('live_evo', code);
+        }, 6500);
+        showToast(`✨ Triggered Evolution Cheat -> ${selText}!`, '#fbbf24');
+      } else {
+        showToast(`⏳ Wait for PS1 BIOS & Title Screen to finish loading first!`, '#f87171');
+      }
+    };
 
-            <div style="margin-top:12px;">
-              <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:6px; font-family:var(--font-mono);">
-                LEARNABLE TECHNIQUES FROM SLES_029.14 (Click any move to test in battle):
-              </div>
-              <div id="partnerMovesList" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
-            </div>
-          </div>
+    // Max 999 Stats, 9999 HP/MP & All 121 Battle Techniques
+    document.getElementById('btnMaxStats').onclick = () => {
+      const base = findPs1RamBase();
+      const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+      if (base >= 0) {
+        const heap = gm.Module.HEAPU8;
+        writeU16(heap, base, 0x16C830, 999);  // Offense
+        writeU16(heap, base, 0x16C832, 999);  // Defense
+        writeU16(heap, base, 0x16C834, 999);  // Speed
+        writeU16(heap, base, 0x16C836, 999);  // Brains
+        writeU16(heap, base, 0x16C840, 9999); // Max HP
+        writeU16(heap, base, 0x16C842, 9999); // Max MP
+        writeU16(heap, base, 0x16C844, 9999); // Current HP
+        writeU16(heap, base, 0x16C846, 9999); // Current MP
+        writeU16(heap, base, 0x13FA46, 0);    // Clear Virus Gauge
+        // Unlock all 121 techniques in bitmask (0x8016C850..0x8016C85F)
+        for (let b = 0; b < 16; b++) {
+          heap[base + 0x16C850 + b] = 0xFF;
+        }
+        showToast(`⚡ Partner boosted to 999 Stats, 9999 HP/MP & All 121 Moves!`, '#34d399');
+      } else {
+        showToast(`⏳ Wait for the game to boot past the Title Screen first!`, '#f87171');
+      }
+    };
 
-          <div class="panel">
-            <div class="panel-header">
-              <h2 class="panel-title">🎒 Tamer Item Bag (Authentic ITEM.TIM Sprites + SLES_029.14 Palettes)</h2>
-              <button class="nav-btn" id="btnAddStarterPack" style="padding:4px 10px; font-size:0.75rem;">+ Restock Supplies</button>
-            </div>
-            <div id="inventoryGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:8px; max-height:220px; overflow-y:auto;"></div>
-          </div>
-        </div>
-      </div>
-    </section>
+    // Auto-boot Patched Digimon World (Europe).bin in 2x Neon HD
+    EJS_player = '#game';
+    EJS_core = 'psx';
+    EJS_gameName = 'Digimon World (Europe) [SLES-02914] HD Unlocked';
+    EJS_color = '#f59e0b';
+    EJS_startOnLoaded = true;
+    EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+    EJS_gameUrl = '/rom/Digimon%20World%20(Europe).bin';
 
-    <!-- TAB 2: FULL PS1 ROM EMULATOR (EMULATORJS WASM) -->
-    <section id="tab-ps1-emu" class="tab-pane">
-      <div class="panel">
-        <div class="panel-header">
-          <div>
-            <h2 class="panel-title">
-              💿 PlayStation 1 WebAssembly Emulator — Digimon World (Europe) [SLES-02914]
-              <span class="badge badge-green">Streaming 387 MB BIN/CUE Live</span>
-            </h2>
-            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
-              Runs your exact <code>D:\games\Digimon World (Europe).zip</code> directly in the browser via EmulatorJS (<code>pcsx_rearmed</code> WebAssembly core).
-            </div>
-          </div>
-          <div style="display:flex; gap:10px;">
-            <button class="nav-btn active" id="btnLaunchPs1Emu">▶️ Boot PS1 ROM in Browser</button>
-            <button class="nav-btn" id="btnReloadPs1Emu">🔄 Restart Core</button>
-            <a href="/emulator.html" target="_blank" class="nav-btn" style="text-decoration:none;">↗️ Open Full Window</a>
-          </div>
-        </div>
-
-        <div class="emulator-frame-wrap" id="emuContainer">
-          <div id="emuPlaceholder" style="text-align:center; max-width:520px; padding:24px;">
-            <img src="/textures/TITLE256.png" alt="Digimon World Title" class="pixelated" style="width:320px; border-radius:8px; border:2px solid var(--accent-gold); margin-bottom:14px;" />
-            <h3 style="margin:0 0 8px;">Ready to Boot Digimon World (Europe) [SLES_029.14]</h3>
-            <p style="font-size:0.86rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">
-              Click <strong>Boot PS1 ROM in Browser</strong> to launch the WebAssembly PlayStation 1 core and stream <code>Digimon World (Europe).zip</code> (239 MB compressed / 387 MB Mode2/2352 raw disc).Supports keyboard, USB/Bluetooth gamepads, save states, and CRT shaders.
-            </p>
-            <button class="nav-btn active" id="btnLaunchPs1EmuCenter" style="margin:0 auto; padding:12px 24px; font-size:0.95rem;">
-              ▶️ Launch Digimon World PS1 Emulator Now
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 3: REA & BINARY REVERSE-ENGINEERING WORKBENCH -->
-    <section id="tab-rea" class="tab-pane">
-      <div class="grid-3" style="margin-bottom:20px;">
-        <div class="panel">
-          <div class="panel-header">
-            <h3 class="panel-title">🛡️ REA Artifact Graph Verification</h3>
-            <span class="badge badge-green">OBSERVED • VERIFIED</span>
-          </div>
-          <div id="reaSummaryCard" class="mono" style="font-size:0.78rem; line-height:1.65; word-break:break-all;"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <h3 class="panel-title">⚙️ PS-X EXE Header (SLES_029.14)</h3>
-            <span class="badge badge-gold">MIPS R3000A</span>
-          </div>
-          <div id="exeHeaderCard" class="mono" style="font-size:0.78rem; line-height:1.65;"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <h3 class="panel-title">🗺️ PS1 2MB RAM Architecture</h3>
-            <span class="badge badge-cyan">0x80000000 - 0x801FFFFF</span>
-          </div>
-          <div style="font-size:0.8rem; line-height:1.55;">
-            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid #64748b; margin-bottom:6px; border-radius:4px;">
-              <strong class="mono">0x80000000 - 0x8000FFFF</strong> (64 KB)<br/>
-              <span style="color:var(--text-muted);">PlayStation BIOS Kernel, Interrupt Vectors &amp; Event Tables (TCB=4, EVENT=16)</span>
-            </div>
-            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid var(--accent-gold); margin-bottom:6px; border-radius:4px;">
-              <strong class="mono">0x80010000 - 0x800907FF</strong> (514 KB)<br/>
-              <span style="color:#fbbf24;">Dynamic Overlay Arena (16 <code>*_REL.BIN</code> modules swap here on demand!)</span>
-            </div>
-            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid var(--accent-cyan); margin-bottom:6px; border-radius:4px;">
-              <strong class="mono">0x80090800 - 0x8013BFFF</strong> (702.5 KB)<br/>
-              <span style="color:#38bdf8;">Resident Core <code>SLES_029.14</code> (.text, .rodata, Shift-JIS Strings, Digimon/Tech/Item Structs)</span>
-            </div>
-            <div style="padding:7px 10px; background:var(--bg-card); border-left:3px solid var(--accent-purple); border-radius:4px;">
-              <strong class="mono">0x8013BD18 - 0x801FFFF0</strong> (784 KB)<br/>
-              <span style="color:#c084fc;">.bss Uninitialized Globals, Heap &amp; Stack Top (<code>SP = 0x801FFFF0</code>)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid-2">
-        <div class="panel">
-          <div class="panel-header">
-            <h3 class="panel-title">🔍 Live MIPS R3000A Disassembler (SLES_029.14)</h3>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <input type="text" id="mipsAddrInput" class="input-control mono" value="0x800A4B40" style="width:130px;" />
-              <button class="nav-btn active" id="btnDisasmGo">Disassemble</button>
-            </div>
-          </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-            <button class="nav-btn mips-preset" data-addr="0x800A4B40" style="font-size:0.74rem; padding:4px 8px;">Entrypoint (0x800A4B40)</button>
-            <button class="nav-btn mips-preset" data-addr="0x80090800" style="font-size:0.74rem; padding:4px 8px;">Text Start (0x80090800)</button>
-            <button class="nav-btn mips-preset" data-addr="0x800CC6D4" style="font-size:0.74rem; padding:4px 8px;">HP Floppy Handler (0x800CC6D4)</button>
-            <button class="nav-btn mips-preset" data-addr="0x800CC60C" style="font-size:0.74rem; padding:4px 8px;">MP Floppy Handler (0x800CC60C)</button>
-            <button class="nav-btn mips-preset" data-addr="0x800CB5A4" style="font-size:0.74rem; padding:4px 8px;">Food Item Handler (0x800CB5A4)</button>
-          </div>
-          <div class="data-table-wrap" style="max-height:430px;">
-            <table class="data-table mono">
-              <thead>
-                <tr>
-                  <th>RAM VAddr</th>
-                  <th>File Off</th>
-                  <th>Raw Bytes (LE)</th>
-                  <th>MIPS R3000A Instruction</th>
-                </tr>
-              </thead>
-              <tbody id="mipsDisasmBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <h3 class="panel-title">🧩 16 Dynamic Overlay Modules (<code>*_REL.BIN</code>)</h3>
-            <span class="badge badge-gold">Loaded into 0x80010000</span>
-          </div>
-          <div class="data-table-wrap" style="max-height:475px;">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Overlay Binary</th>
-                  <th>Subsystem Role</th>
-                  <th>Size</th>
-                  <th>Disc LBA</th>
-                  <th>SHA-256 Digest</th>
-                </tr>
-              </thead>
-              <tbody id="overlaysTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 4: EXTRACTED ROM DATABASE -->
-    <section id="tab-rom-db" class="tab-pane">
-      <div class="panel" style="margin-bottom:20px;">
-        <div class="panel-header">
-          <div class="nav-tabs" id="dbSubNav">
-            <button class="nav-btn active" data-subtab="db-digimon">🦖 127 Digimon Structs (0xA8B5C)</button>
-            <button class="nav-btn" data-subtab="db-cards">🃏 66 HD Trading Cards (CARD.ALL)</button>
-            <button class="nav-btn" data-subtab="db-maps">🗺️ 9 Pre-Rendered File Island Maps (.TFS)</button>
-            <button class="nav-btn" data-subtab="db-techs">🔥 121 Battle Techniques (0x9FCB8)</button>
-            <button class="nav-btn" data-subtab="db-items">🎒 128 Items &amp; Sprites (0xA0A58)</button>
-            <button class="nav-btn" data-subtab="db-textures">🖼️ 14 Decoded PS1 .TIM Textures</button>
-          </div>
-        </div>
-
-        <!-- Subtab: Digimon -->
-        <div id="db-digimon" class="db-subpane">
-          <div class="search-bar">
-            <input type="text" id="searchDigimon" class="input-control" placeholder="Search Digimon name, model (.MMD), move, or item drop..." style="flex:1; min-width:240px;" />
-            <select id="filterDigimonStage" class="select-control">
-              <option value="">All Evolution Stages</option>
-              <option value="Fresh (Baby I)">Fresh (Baby I)</option>
-              <option value="In-Training (Baby II)">In-Training (Baby II)</option>
-              <option value="Rookie (Child)">Rookie (Child)</option>
-              <option value="Champion (Adult)">Champion (Adult)</option>
-              <option value="Ultimate (Perfect)">Ultimate (Perfect)</option>
-            </select>
-            <select id="filterDigimonType" class="select-control">
-              <option value="">All Attributes</option>
-              <option value="Vaccine">Vaccine</option>
-              <option value="Data">Data</option>
-              <option value="Virus">Virus</option>
-            </select>
-          </div>
-          <div class="data-table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Digimon Species</th>
-                  <th>3D Model</th>
-                  <th>Stage</th>
-                  <th>Attribute</th>
-                  <th>Specialties</th>
-                  <th>Finisher &amp; Moveset</th>
-                  <th>Wild Item Drop</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="digimonTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Subtab: Techniques -->
-        <div id="db-techs" class="db-subpane" style="display:none;">
-          <div class="search-bar">
-            <input type="text" id="searchTech" class="input-control" placeholder="Search technique name, specialty, or status effect..." style="flex:1; min-width:240px;" />
-            <select id="filterTechElement" class="select-control">
-              <option value="">All Specialties</option>
-              <option value="Fire">Fire</option>
-              <option value="Battle">Battle</option>
-              <option value="Air">Air</option>
-              <option value="Earth">Earth</option>
-              <option value="Ice">Ice</option>
-              <option value="Mech">Mech</option>
-              <option value="Filth">Filth</option>
-            </select>
-          </div>
-          <div class="data-table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Technique Name</th>
-                  <th>Category</th>
-                  <th>Element</th>
-                  <th>Base Power</th>
-                  <th>MP Cost</th>
-                  <th>Range</th>
-                  <th>Status Effect</th>
-                  <th>Acc / Block Factor</th>
-                  <th>Struct Offset</th>
-                </tr>
-              </thead>
-              <tbody id="techTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Subtab: Items -->
-        <div id="db-items" class="db-subpane" style="display:none;">
-          <div class="search-bar">
-            <input type="text" id="searchItem" class="input-control" placeholder="Search item name, description, or category..." style="flex:1; min-width:240px;" />
-            <select id="filterItemCat" class="select-control">
-              <option value="">All Categories</option>
-              <option value="Recovery / Medicine">Recovery / Medicine</option>
-              <option value="Food / Produce">Food / Produce</option>
-              <option value="Stat Chip">Stat Chip</option>
-              <option value="Battle Disk">Battle Disk</option>
-              <option value="Digivolution Item">Digivolution Item</option>
-              <option value="Care / Utility">Care / Utility</option>
-              <option value="Key / Special">Key / Special</option>
-            </select>
-          </div>
-          <div class="data-table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>TIM Icon</th>
-                  <th>Item Name</th>
-                  <th>Category</th>
-                  <th>ROM Description (Shift-JIS Decoded)</th>
-                  <th>CLUT Row</th>
-                  <th>RAM Handler Ptr</th>
-                  <th>Give to Partner</th>
-                </tr>
-              </thead>
-              <tbody id="itemTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Subtab: Decoded PS1 .TIM Textures -->
-        <div id="db-textures" class="db-subpane" style="display:none;">
-          <div class="texture-grid" id="texturesGrid"></div>
-        </div>
-
-        <!-- Subtab: 66 HD Trading Cards (CARD.ALL) -->
-        <div id="db-cards" class="db-subpane" style="display:none;">
-          <div class="search-bar">
-            <input type="text" id="searchCards" class="input-control" placeholder="Search 66 Bandai 3D-Rendered Digimon Cards by name, number, or specialty..." style="flex:1; min-width:240px;" />
-          </div>
-          <div class="hd-card-grid" id="cardsGrid"></div>
-        </div>
-
-        <!-- Subtab: 9 Pre-Rendered File Island .TFS Maps -->
-        <div id="db-maps" class="db-subpane" style="display:none;">
-          <div class="hd-map-grid" id="mapsGrid"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- TAB 5: ISO 9660 DISC EXPLORER & HEX VIEWER -->
-    <section id="tab-disc" class="tab-pane">
-      <div class="grid-2">
-        <div class="panel">
-          <div class="panel-header">
-            <h2 class="panel-title">💿 ISO 9660 Mode2/2352 Disc File System (887 Entries)</h2>
-            <span class="badge badge-cyan" id="discCountBadge">887 files</span>
-          </div>
-          <div class="search-bar">
-            <input type="text" id="searchDiscFile" class="input-control" placeholder="Filter by path or filename (e.g. .MMD, .MAP, .TIM, .SCN, .BIN)..." style="flex:1;" />
-          </div>
-          <div class="data-table-wrap" style="max-height:500px;">
-            <table class="data-table mono">
-              <thead>
-                <tr>
-                  <th>Disc Path</th>
-                  <th>Type</th>
-                  <th>LBA Sector</th>
-                  <th>Size (Bytes)</th>
-                  <th>Inspect</th>
-                </tr>
-              </thead>
-              <tbody id="discFilesBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">
-            <h2 class="panel-title">🔬 Live CD-ROM Sector Hex &amp; ASCII Inspector</h2>
-            <span class="badge badge-gold mono" id="hexTargetBadge">SYSTEM.CNF (LBA 23)</span>
-          </div>
-          <div class="data-table-wrap" style="max-height:555px;">
-            <table class="data-table mono">
-              <thead>
-                <tr>
-                  <th>Offset</th>
-                  <th>00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F</th>
-                  <th>ASCII</th>
-                </tr>
-              </thead>
-              <tbody id="hexViewerBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <script src="/app.js"></script>
+    EJS_defaultOptions = {
+      'pcsx_rearmed_neon_enhancement_enable': 'enabled',
+      'pcsx_rearmed_neon_enhancement_no_main': 'disabled',
+      'pcsx_rearmed_dithering': 'disabled',
+      'pcsx_rearmed_duping_enable': 'enabled',
+      'pcsx_rearmed_show_bios_bootlogo': 'disabled'
+    };
+  </script>
+  <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 </body>
 </html>
