@@ -239,6 +239,6 @@ const server = http.createServer((req, res) => {
 });
 
 const PORT = process.env.PORT || 3456;
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Digimon World (Europe) Reverse-Engineered WebUI running at http://127.0.0.1:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Digimon World (Europe) Reverse-Engineered WebUI running at http://localhost:${PORT}`);
 });

@@ -86,166 +86,59 @@
   <div id="game"></div>
 
   <script>
-    (async function bootGame() {
-      const statusEl = document.getElementById('loader-status');
-      const barEl = document.getElementById('progress-bar');
-      const overlayEl = document.getElementById('loader-overlay');
+    /*
+     * Load the shared boot script from whichever layout the static host uses:
+     * public/ as the deployment root, or the repository root as the site root.
+     */
+    (function loadDw1BootScript() {
+      var statusEl = document.getElementById('loader-status');
+      var sources = [
+        './emulator-boot.js',
+        '/emulator-boot.js',
+        './public/emulator-boot.js',
+        '/public/emulator-boot.js'
+      ];
+      var seen = Object.create(null);
+      var index = 0;
 
-      // ---- IndexedDB chunk cache: download once, instant boot afterwards ----
-      const DB_NAME = 'dw1-disc-cache', STORE = 'chunks';
-      const openDb = () => new Promise((res, rej) => {
-        const r = indexedDB.open(DB_NAME, 1);
-        r.onupgradeneeded = () => r.result.createObjectStore(STORE);
-        r.onsuccess = () => res(r.result);
-        r.onerror = () => rej(r.error);
-      });
-      const idb = (db, mode, fn) => new Promise((res, rej) => {
-        const tx = db.transaction(STORE, mode);
-        const req = fn(tx.objectStore(STORE));
-        tx.oncomplete = () => res(req && req.result);
-        tx.onerror = tx.onabort = () => rej(tx.error);
-      });
-      const sha256 = async (blob) => {
-        const h = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
-        return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
-      };
-
-      let ROM_BASE = '/rom/';
-      try {
-        let manifestRes = await fetch(ROM_BASE + 'manifest.json', { cache: 'no-cache' });
-        if (!manifestRes.ok) {
-          ROM_BASE = 'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
-          manifestRes = await fetch(ROM_BASE + 'manifest.json', { cache: 'no-cache' });
+      function fail() {
+        if (statusEl) {
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = 'Error: could not load the emulator boot script.';
         }
-        if (!manifestRes.ok) throw new Error('Could not load manifest.json');
-        const manifest = await manifestRes.json();
-
-        let db = null;
-        try {
-          db = await openDb();
-          if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
-        } catch (e) { console.warn('IndexedDB unavailable, caching disabled', e); }
-
-        const totalBytes = manifest.totalSize;
-        let loadedBytes = 0;
-        let cachedCount = 0;
-        const parts = [];
-        const setProgress = (label) => {
-          const pct = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
-          barEl.style.width = pct + '%';
-          statusEl.textContent = `${label} (${(loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB) - ${pct}%`;
-        };
-
-        for (const chunk of manifest.chunks) {
-          const key = chunk.sha256 ? chunk.name + ':' + chunk.sha256 : null;
-          let blob = null;
-          if (db && key) {
-            try {
-              const hit = await idb(db, 'readonly', s => s.get(key));
-              if (hit && hit.size === chunk.size) { blob = hit; cachedCount++; loadedBytes += chunk.size; setProgress('Loading from local cache'); }
-            } catch (e) { console.warn('cache read failed', e); }
-          }
-          if (!blob) {
-            const res = await fetch(ROM_BASE + chunk.name);
-            if (!res.ok) throw new Error('Failed to fetch ' + chunk.name + ' (HTTP ' + res.status + ')');
-            const reader = res.body.getReader();
-            const subChunks = [];
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              subChunks.push(value);
-              loadedBytes += value.byteLength;
-              setProgress('Downloading game disc');
-            }
-            blob = new Blob(subChunks);
-            if (chunk.sha256 && (await sha256(blob)) !== chunk.sha256) throw new Error('Integrity check failed for ' + chunk.name);
-            if (db && key) {
-              try {
-                await idb(db, 'readwrite', s => s.put(blob, key));
-              } catch (e) { console.warn('cache write failed (quota?)', e); }
-            }
-          }
-          parts.push(blob);
-        }
-
-        // Remove chunks from older disc versions
-        if (db) {
-          try {
-            const valid = new Set(manifest.chunks.filter(c => c.sha256).map(c => c.name + ':' + c.sha256));
-            const keys = await idb(db, 'readonly', s => s.getAllKeys());
-            for (const k of keys) if (!valid.has(k)) await idb(db, 'readwrite', s => s.delete(k));
-          } catch (e) { console.warn('cache cleanup failed', e); }
-        }
-        if (navigator.storage && navigator.storage.estimate) {
-          navigator.storage.estimate().then(e => console.log(`[DW1] ${cachedCount}/${manifest.chunks.length} chunks from cache. Storage used: ${(e.usage / 1048576).toFixed(0)} MB of ${(e.quota / 1048576).toFixed(0)} MB`));
-        }
-
-        const romFile = new File(parts, manifest.fileName || 'Digimon World (Europe).zip');
-
-        // ---- Memory card save export / import + automatic versioned backups ----
-        const toast = (m) => { const t = document.getElementById('save-toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 3500); };
-        const SAVE_DB = 'dw1-saves';
-        const saveDb = () => new Promise((res, rej) => { const r = indexedDB.open(SAVE_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('backups', { keyPath: 'ts' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-        const backupSave = async (data, reason) => {
-          try {
-            const d = await saveDb();
-            await new Promise((res, rej) => { const tx = d.transaction('backups', 'readwrite'); const s = tx.objectStore('backups'); s.put({ ts: Date.now(), reason, data }); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
-            const all = await new Promise((res) => { const q = d.transaction('backups').objectStore('backups').getAllKeys(); q.onsuccess = () => res(q.result); });
-            for (const k of all.slice(0, Math.max(0, all.length - 10))) d.transaction('backups', 'readwrite').objectStore('backups').delete(k);
-          } catch (e) { console.warn('save backup failed', e); }
-        };
-        const latestBackup = async () => { const d = await saveDb(); return new Promise((res) => { const q = d.transaction('backups').objectStore('backups').getAll(); q.onsuccess = () => res(q.result.pop() || null); }); };
-        const gm = () => window.EJS_emulator && window.EJS_emulator.gameManager;
-        const writeSave = (bytes) => {
-          const m = gm(); const path = m.getSaveFilePath(); let cp = '';
-          path.split('/').slice(0, -1).forEach(p => { if (!p) return; cp += '/' + p; if (!m.FS.analyzePath(cp).exists) m.FS.mkdir(cp); });
-          if (m.FS.analyzePath(path).exists) m.FS.unlink(path);
-          m.FS.writeFile(path, bytes); m.loadSaveFiles();
-        };
-        const currentSave = async () => { const m = gm(); try { m.saveSaveFiles(); } catch (e) {} await new Promise(r => setTimeout(r, 300)); return m.getSaveFile(false); };
-
-        window.EJS_onGameStart = () => {
-          document.getElementById('save-bar').style.display = 'flex';
-          setInterval(async () => { try { const s = await currentSave(); if (s && s.length) backupSave(s, 'auto'); } catch (e) {} }, 120000);
-        };
-        document.getElementById('btn-export').onclick = async () => {
-          try {
-            const s = await currentSave();
-            if (!s || !s.length) return toast('No memory card data yet - save in-game first (at a Save point).');
-            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([s])); a.download = 'Digimon World (Europe) ' + new Date().toISOString().slice(0, 10) + '.srm'; a.click();
-            toast('Save exported (' + s.length + ' bytes).');
-          } catch (e) { toast('Export failed: ' + e.message); }
-        };
-        document.getElementById('btn-import').onclick = () => document.getElementById('save-file').click();
-        document.getElementById('save-file').onchange = async (ev) => {
-          const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
-          try {
-            const bytes = new Uint8Array(await f.arrayBuffer());
-            if (bytes.length !== 131072 && !confirm('This file is ' + bytes.length + ' bytes; a PS1 memory card is normally 131072. Import anyway?')) return;
-            const cur = await currentSave(); if (cur && cur.length) await backupSave(cur, 'before-import');
-            writeSave(bytes); toast('Save imported. Your previous save was backed up automatically.');
-          } catch (e) { toast('Import failed: ' + e.message); }
-        };
-        document.getElementById('btn-restore').onclick = async () => {
-          try { const b = await latestBackup(); if (!b) return toast('No backup yet.'); writeSave(b.data); toast('Restored backup from ' + new Date(b.ts).toLocaleString()); } catch (e) { toast('Restore failed: ' + e.message); }
-        };
-        window.EJS_player = '#game';
-        window.EJS_core = 'psx';
-        window.EJS_gameName = 'Digimon World (Europe)';
-        window.EJS_color = '#f59e0b';
-        window.EJS_startOnLoaded = true;
-        window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
-        window.EJS_gameUrl = romFile;
-
-        overlayEl.style.display = 'none';
-
-        const script = document.createElement('script');
-        script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
-        document.body.appendChild(script);
-      } catch (err) {
-        statusEl.style.color = '#ef4444';
-        statusEl.textContent = 'Error loading disc: ' + err.message;
       }
+
+      function remove(script) {
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+
+      function next() {
+        if (index >= sources.length) return fail();
+        var url;
+        try {
+          url = new URL(sources[index++], location.href).href;
+        } catch (err) {
+          return next();
+        }
+        if (seen[url]) return next();
+        seen[url] = true;
+
+        var script = document.createElement('script');
+        script.src = url;
+        script.onload = function () {
+          if (!window.DW1_BOOT_STARTED) {
+            remove(script);
+            next();
+          }
+        };
+        script.onerror = function () {
+          remove(script);
+          next();
+        };
+        document.head.appendChild(script);
+      }
+
+      next();
     })();
   </script>
 </body>

@@ -44,6 +44,7 @@
 - 🏋️ **Located training data** — Green Gym stat-requirement table (`0x80134A30`, 28 bytes/entry) and base evolution stats (`0x80135114`, 14 bytes/entry) are documented for adding new species.
 - 💾 **IndexedDB disc cache** — the ~240 MB disc is downloaded **once**, verified with SHA-256, and stored in the browser's IndexedDB. Return visits boot from local storage with no re-download; changed chunks are re-fetched automatically and stale chunks removed. Persistent storage is requested and quota/write failures fall back to normal streaming. Run `node add-manifest-hashes.mjs` after re-splitting the ROM to refresh hashes.
 - 💾 **Memory-card save export / import** — top-right buttons (appear once the game starts): **Export save** downloads your memory card as a .srm file (compatible with other PS1 emulators), **Import save** loads one, **Restore backup** rolls back. Automatic versioned backups (last 10) are written to IndexedDB every 2 minutes and before every import, so nothing is overwritten silently.
+- 🛠️ **BIOS-free PS1 boot fix** — EmulatorJS is pinned to `4.2.3`, all entry points share `public/emulator-boot.js`, and the emulator is forced to **PCSX-ReARMed with its built-in HLE BIOS**. The incompatible Beetle/`mednafen_psx_hw` core selector is hidden and stale saved core settings are cleared, fixing `Firmware is missing: scph5502.bin` without bundling a Sony BIOS.
 - 🔬 **In progress: Veemon from *Digimon World 3*** — research so far located `M145VMON.BIN` in DW3's disc and decoded its `RLEN`-compressed texture. Veemon is **not yet in the game**; converting the model into DW1's `.MMD` format is still to do. (DW3 assets are never committed to this repo.)
 - 🐉 **Veemon patch update** – added Veemon as a blue stand‑in using Agumon's model and texture (ID 114). Replaces Goburimon in starter pool; evolves from Koromon into six Champions.
 
@@ -131,7 +132,24 @@ node patch-ps1-rom.mjs
 ```bash
 npm start
 ```
-Open **[`http://127.0.0.1:3456`](http://127.0.0.1:3456)** in any modern browser!
+Open **[`http://localhost:3456`](http://localhost:3456)** in any modern browser!
+
+Run the boot/configuration regression checks with:
+
+```bash
+npm test
+```
+
+### If you previously saw `Firmware is missing: scph5502.bin`
+
+That message comes from the Beetle/`mednafen_psx_hw` PlayStation core, which requires a region-matched, copyrighted Sony BIOS dump. This project does not distribute one. The browser build now:
+
+- pins EmulatorJS `4.2.3` instead of the moving `stable` CDN path;
+- boots `pcsx_rearmed` with `pcsx_rearmed_bios = "HLE"`;
+- hides the alternate-core selector and removes stale `retroarch_core` / BIOS settings from `localStorage`;
+- keeps memory-card saves and all other user settings intact.
+
+A hard refresh after deploying the fix is enough; no BIOS upload is required. HLE compatibility is slightly lower than a user-supplied retail BIOS, but *Digimon World (Europe)* boots without one.
 
 ---
 
@@ -157,6 +175,8 @@ Open **[`http://127.0.0.1:3456`](http://127.0.0.1:3456)** in any modern browser!
 DigimonWorld1Web/
 ├── public/
 │   ├── index.html                  # Direct-boot 3D PS1 Web Edition + Live 127-Digimon RAM Unlocker Bar
+│   ├── emulator.html               # Standalone/iframe full-screen emulator entry point
+│   ├── emulator-boot.js            # Shared BIOS-free boot, ROM cache and save-control logic
 │   ├── assets/                     # GitHub Hero Banner (SVG) & OpenGraph Social Card (PNG)
 │   ├── cards/                      # 66 Decoded 2x EPX HD Bandai 3D Digimon Card Portraits (card_00..65.png)
 │   ├── maps/                       # 9 Decoded Pre-Rendered 3D File Island .TFS Backgrounds (file_city.png, etc.)
@@ -171,11 +191,12 @@ DigimonWorld1Web/
 ├── extract-ps1-textures.mjs        # PS1 4/8/16-BPP .TIM Texture & 3D Card Decoder
 ├── extract-tfs-maps.mjs            # Pre-Rendered 3D File Island .TFS Map Background Decoder
 ├── upscale-hd.mjs                  # Pure-JS 2x EPX / Scale2x + Bilateral HD Texture Upscaler
-└── generate-github-assets.mjs      # Pure-JS Generator for GitHub Banner, OpenGraph Card, Favicons & WebManifest
+├── generate-github-assets.mjs      # Pure-JS Generator for GitHub Banner, OpenGraph Card, Favicons & WebManifest
+└── test/emulator-boot.test.mjs     # Regression tests for BIOS-free boot, ROM manifest and HTML entry points
 ```
 
 ---
 
 ## ⚖️ Legal & Disclaimer
 
-This repository provides reverse-engineering research tools, binary patch scripts, and a browser interface. **No proprietary Sony PlayStation BIOS files or raw `.bin`/`.iso` ROM dumps are hosted or distributed in this repository** (see [`.gitignore`](.gitignore)). *Digimon World* is a registered trademark of **Bandai Namco Entertainment Inc.**
+This repository provides reverse-engineering research tools, binary patch scripts, and a browser interface. **No proprietary Sony PlayStation BIOS files or raw `.bin`/`.iso` ROM dumps are hosted or distributed in this repository** (see [`.gitignore`](.gitignore)). The browser emulator uses the open, built-in HLE BIOS in PCSX-ReARMed rather than a Sony firmware image. *Digimon World* is a registered trademark of **Bandai Namco Entertainment Inc.**

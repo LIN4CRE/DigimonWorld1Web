@@ -76,58 +76,59 @@
   <div id="game"></div>
 
   <script>
-    (async function bootGame() {
-      const statusEl = document.getElementById('loader-status');
-      const barEl = document.getElementById('progress-bar');
-      const overlayEl = document.getElementById('loader-overlay');
+    /*
+     * Load the shared boot script from whichever layout the static host uses:
+     * public/ as the deployment root, or the repository root as the site root.
+     */
+    (function loadDw1BootScript() {
+      var statusEl = document.getElementById('loader-status');
+      var sources = [
+        './emulator-boot.js',
+        '/emulator-boot.js',
+        './public/emulator-boot.js',
+        '/public/emulator-boot.js'
+      ];
+      var seen = Object.create(null);
+      var index = 0;
 
-      try {
-        const manifestRes = await fetch('rom/manifest.json');
-        if (!manifestRes.ok) throw new Error('Could not load rom/manifest.json');
-        const manifest = await manifestRes.json();
-
-        const totalBytes = manifest.totalSize;
-        let loadedBytes = 0;
-        const parts = [];
-
-        for (let i = 0; i < manifest.chunks.length; i++) {
-          const chunk = manifest.chunks[i];
-          const res = await fetch('rom/' + chunk.name);
-          if (!res.ok) throw new Error('Failed to fetch ' + chunk.name);
-
-          const reader = res.body.getReader();
-          const subChunks = [];
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            subChunks.push(value);
-            loadedBytes += value.byteLength;
-            const pct = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
-            barEl.style.width = pct + '%';
-            statusEl.textContent = `Loading game disc (${(loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB) — ${pct}%`;
-          }
-          parts.push(new Blob(subChunks));
+      function fail() {
+        if (statusEl) {
+          statusEl.style.color = '#ef4444';
+          statusEl.textContent = 'Error: could not load the emulator boot script.';
         }
-
-        const romFile = new File(parts, manifest.fileName || 'Digimon World (Europe).zip');
-
-        window.EJS_player = '#game';
-        window.EJS_core = 'psx';
-        window.EJS_gameName = 'Digimon World (Europe)';
-        window.EJS_color = '#f59e0b';
-        window.EJS_startOnLoaded = true;
-        window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
-        window.EJS_gameUrl = romFile;
-
-        overlayEl.style.display = 'none';
-
-        const script = document.createElement('script');
-        script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
-        document.body.appendChild(script);
-      } catch (err) {
-        statusEl.style.color = '#ef4444';
-        statusEl.textContent = 'Error loading disc: ' + err.message;
       }
+
+      function remove(script) {
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+
+      function next() {
+        if (index >= sources.length) return fail();
+        var url;
+        try {
+          url = new URL(sources[index++], location.href).href;
+        } catch (err) {
+          return next();
+        }
+        if (seen[url]) return next();
+        seen[url] = true;
+
+        var script = document.createElement('script');
+        script.src = url;
+        script.onload = function () {
+          if (!window.DW1_BOOT_STARTED) {
+            remove(script);
+            next();
+          }
+        };
+        script.onerror = function () {
+          remove(script);
+          next();
+        };
+        document.head.appendChild(script);
+      }
+
+      next();
     })();
   </script>
 </body>
