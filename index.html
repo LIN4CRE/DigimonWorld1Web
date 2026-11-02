@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Digimon World (Europe)</title>
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" type="image/svg+xml" href="https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/favicon.svg" />
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+    #game {
+      width: 100vw;
+      height: 100vh;
+    }
+    #loader-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 9999;
+    }
+    #loader-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f8fafc;
+      letter-spacing: 0.4px;
+    }
+    #progress-wrap {
+      width: min(380px, 80vw);
+      height: 10px;
+      background: #1e293b;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background: #f59e0b;
+      transition: width 0.15s ease;
+    }
+    #loader-status {
+      font-size: 13px;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="loader-overlay">
+    <div id="loader-title">Digimon World (Europe)</div>
+    <div id="progress-wrap">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="loader-status">Loading game disc from GitHub... 0%</div>
+  </div>
+
+  <div id="game"></div>
+
+  <script>
+    (async function bootGame() {
+      const statusEl = document.getElementById('loader-status');
+      const barEl = document.getElementById('progress-bar');
+      const overlayEl = document.getElementById('loader-overlay');
+
+      const isLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+      const ROM_BASE = isLocal
+        ? '/rom/'
+        : 'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
+
+      try {
+        const manifestRes = await fetch(ROM_BASE + 'manifest.json');
+        if (!manifestRes.ok) throw new Error('Could not load manifest.json');
+        const manifest = await manifestRes.json();
+
+        const totalBytes = manifest.totalSize;
+        let loadedBytes = 0;
+        const parts = [];
+
+        for (let i = 0; i < manifest.chunks.length; i++) {
+          const chunk = manifest.chunks[i];
+          const res = await fetch(ROM_BASE + chunk.name);
+          if (!res.ok) throw new Error('Failed to fetch ' + chunk.name);
+
+          const reader = res.body.getReader();
+          const subChunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            subChunks.push(value);
+            loadedBytes += value.byteLength;
+            const pct = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+            barEl.style.width = pct + '%';
+            statusEl.textContent = `Loading game disc (${(loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB) — ${pct}%`;
+          }
+          parts.push(new Blob(subChunks));
+        }
+
+        const romFile = new File(parts, manifest.fileName || 'Digimon World (Europe).zip');
+
+        window.EJS_player = '#game';
+        window.EJS_core = 'psx';
+        window.EJS_gameName = 'Digimon World (Europe)';
+        window.EJS_color = '#f59e0b';
+        window.EJS_startOnLoaded = true;
+        window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+        window.EJS_gameUrl = romFile;
+
+        overlayEl.style.display = 'none';
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+        document.body.appendChild(script);
+      } catch (err) {
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = 'Error loading disc: ' + err.message;
+      }
+    })();
+  </script>
+</body>
+</html>

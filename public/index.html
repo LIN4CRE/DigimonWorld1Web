@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Digimon World (Europe)</title>
   <meta name="theme-color" content="#000000" />
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="alternate icon" href="favicon.ico" />
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
-  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/favicon.svg" />
   <style>
     * {
       box-sizing: border-box;
@@ -70,7 +67,7 @@
     <div id="progress-wrap">
       <div id="progress-bar"></div>
     </div>
-    <div id="loader-status">Loading game disc... 0%</div>
+    <div id="loader-status">Loading game disc from GitHub... 0%</div>
   </div>
 
   <div id="game"></div>
@@ -81,9 +78,14 @@
       const barEl = document.getElementById('progress-bar');
       const overlayEl = document.getElementById('loader-overlay');
 
+      const isLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+      const ROM_BASE = isLocal
+        ? '/rom/'
+        : 'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
+
       try {
-        const manifestRes = await fetch('rom/manifest.json');
-        if (!manifestRes.ok) throw new Error('Could not load rom/manifest.json');
+        const manifestRes = await fetch(ROM_BASE + 'manifest.json');
+        if (!manifestRes.ok) throw new Error('Could not load manifest.json');
         const manifest = await manifestRes.json();
 
         const totalBytes = manifest.totalSize;
@@ -92,7 +94,7 @@
 
         for (let i = 0; i < manifest.chunks.length; i++) {
           const chunk = manifest.chunks[i];
-          const res = await fetch('rom/' + chunk.name);
+          const res = await fetch(ROM_BASE + chunk.name);
           if (!res.ok) throw new Error('Failed to fetch ' + chunk.name);
 
           const reader = res.body.getReader();

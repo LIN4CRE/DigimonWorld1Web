@@ -7,9 +7,9 @@
 # 🦖 Digimon World 1 — Web Edition (`SLES-02914`)
 ### **Play the Real PlayStation 1 Game Directly in Your Browser**
 
-[![Play Now on GitHub Pages](https://img.shields.io/badge/▶️_PLAY_LIVE_IN_BROWSER-lin4cre.github.io%2FDigimonWorld1Web-22c55e?style=for-the-badge)](https://lin4cre.github.io/DigimonWorld1Web/)
-[![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://lin4cre.github.io/DigimonWorld1Web/)
-[![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://lin4cre.github.io/DigimonWorld1Web/)
+[![Play Now Live](https://img.shields.io/badge/▶️_PLAY_LIVE_IN_BROWSER-digimon--world--1--web.vercel.app-22c55e?style=for-the-badge)](https://digimon-world-1-web.vercel.app/)
+[![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://digimon-world-1-web.vercel.app/)
+[![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://digimon-world-1-web.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-eab308?style=for-the-badge)](LICENSE)
 
 <p align="center">
