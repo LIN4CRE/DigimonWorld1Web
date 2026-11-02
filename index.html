@@ -59,6 +59,11 @@
       color: #94a3b8;
       font-family: monospace;
     }
+    #save-bar { position: fixed; top: 8px; right: 8px; z-index: 50; display: flex; gap: 6px; opacity: 0.35; transition: opacity .2s; font: 12px system-ui, sans-serif; }
+    #save-bar:hover { opacity: 1; }
+    #save-bar button { background: #1e293b; color: #f8fafc; border: 1px solid #475569; border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+    #save-bar button:hover { background: #f59e0b; color: #000; }
+    #save-toast { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #f8fafc; border: 1px solid #f59e0b; border-radius: 8px; padding: 8px 14px; font: 13px system-ui; z-index: 60; display: none; }
   </style>
 </head>
 <body>
@@ -69,6 +74,14 @@
     </div>
     <div id="loader-status">Loading game disc from GitHub... 0%</div>
   </div>
+
+  <div id="save-bar" style="display:none">
+    <button id="btn-export" title="Download your memory card save (.srm)">Export save</button>
+    <button id="btn-import" title="Load a memory card save (.srm / .mcr)">Import save</button>
+    <button id="btn-restore" title="Restore the latest automatic backup">Restore backup</button>
+  </div>
+  <div id="save-toast"></div>
+  <input type="file" id="save-file" accept=".srm,.mcr,.mcd,.sav,.bin" style="display:none" />
 
   <div id="game"></div>
 
@@ -168,6 +181,54 @@
         }
 
         const romFile = new File(parts, manifest.fileName || 'Digimon World (Europe).zip');
+
+        // ---- Memory card save export / import + automatic versioned backups ----
+        const toast = (m) => { const t = document.getElementById('save-toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 3500); };
+        const SAVE_DB = 'dw1-saves';
+        const saveDb = () => new Promise((res, rej) => { const r = indexedDB.open(SAVE_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('backups', { keyPath: 'ts' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+        const backupSave = async (data, reason) => {
+          try {
+            const d = await saveDb();
+            await new Promise((res, rej) => { const tx = d.transaction('backups', 'readwrite'); const s = tx.objectStore('backups'); s.put({ ts: Date.now(), reason, data }); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+            const all = await new Promise((res) => { const q = d.transaction('backups').objectStore('backups').getAllKeys(); q.onsuccess = () => res(q.result); });
+            for (const k of all.slice(0, Math.max(0, all.length - 10))) d.transaction('backups', 'readwrite').objectStore('backups').delete(k);
+          } catch (e) { console.warn('save backup failed', e); }
+        };
+        const latestBackup = async () => { const d = await saveDb(); return new Promise((res) => { const q = d.transaction('backups').objectStore('backups').getAll(); q.onsuccess = () => res(q.result.pop() || null); }); };
+        const gm = () => window.EJS_emulator && window.EJS_emulator.gameManager;
+        const writeSave = (bytes) => {
+          const m = gm(); const path = m.getSaveFilePath(); let cp = '';
+          path.split('/').slice(0, -1).forEach(p => { if (!p) return; cp += '/' + p; if (!m.FS.analyzePath(cp).exists) m.FS.mkdir(cp); });
+          if (m.FS.analyzePath(path).exists) m.FS.unlink(path);
+          m.FS.writeFile(path, bytes); m.loadSaveFiles();
+        };
+        const currentSave = async () => { const m = gm(); try { m.saveSaveFiles(); } catch (e) {} await new Promise(r => setTimeout(r, 300)); return m.getSaveFile(false); };
+
+        window.EJS_onGameStart = () => {
+          document.getElementById('save-bar').style.display = 'flex';
+          setInterval(async () => { try { const s = await currentSave(); if (s && s.length) backupSave(s, 'auto'); } catch (e) {} }, 120000);
+        };
+        document.getElementById('btn-export').onclick = async () => {
+          try {
+            const s = await currentSave();
+            if (!s || !s.length) return toast('No memory card data yet - save in-game first (at a Save point).');
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([s])); a.download = 'Digimon World (Europe) ' + new Date().toISOString().slice(0, 10) + '.srm'; a.click();
+            toast('Save exported (' + s.length + ' bytes).');
+          } catch (e) { toast('Export failed: ' + e.message); }
+        };
+        document.getElementById('btn-import').onclick = () => document.getElementById('save-file').click();
+        document.getElementById('save-file').onchange = async (ev) => {
+          const f = ev.target.files[0]; if (!f) return; ev.target.value = '';
+          try {
+            const bytes = new Uint8Array(await f.arrayBuffer());
+            if (bytes.length !== 131072 && !confirm('This file is ' + bytes.length + ' bytes; a PS1 memory card is normally 131072. Import anyway?')) return;
+            const cur = await currentSave(); if (cur && cur.length) await backupSave(cur, 'before-import');
+            writeSave(bytes); toast('Save imported. Your previous save was backed up automatically.');
+          } catch (e) { toast('Import failed: ' + e.message); }
+        };
+        document.getElementById('btn-restore').onclick = async () => {
+          try { const b = await latestBackup(); if (!b) return toast('No backup yet.'); writeSave(b.data); toast('Restored backup from ' + new Date(b.ts).toLocaleString()); } catch (e) { toast('Restore failed: ' + e.message); }
+        };
         window.EJS_player = '#game';
         window.EJS_core = 'psx';
         window.EJS_gameName = 'Digimon World (Europe)';
