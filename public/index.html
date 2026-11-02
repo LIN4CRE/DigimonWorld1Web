@@ -78,41 +78,96 @@
       const barEl = document.getElementById('progress-bar');
       const overlayEl = document.getElementById('loader-overlay');
 
+      // ---- IndexedDB chunk cache: download once, instant boot afterwards ----
+      const DB_NAME = 'dw1-disc-cache', STORE = 'chunks';
+      const openDb = () => new Promise((res, rej) => {
+        const r = indexedDB.open(DB_NAME, 1);
+        r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+      const idb = (db, mode, fn) => new Promise((res, rej) => {
+        const tx = db.transaction(STORE, mode);
+        const req = fn(tx.objectStore(STORE));
+        tx.oncomplete = () => res(req && req.result);
+        tx.onerror = tx.onabort = () => rej(tx.error);
+      });
+      const sha256 = async (blob) => {
+        const h = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+        return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+
       let ROM_BASE = '/rom/';
       try {
-        let manifestRes = await fetch(ROM_BASE + 'manifest.json');
+        let manifestRes = await fetch(ROM_BASE + 'manifest.json', { cache: 'no-cache' });
         if (!manifestRes.ok) {
           ROM_BASE = 'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
-          manifestRes = await fetch(ROM_BASE + 'manifest.json');
+          manifestRes = await fetch(ROM_BASE + 'manifest.json', { cache: 'no-cache' });
         }
         if (!manifestRes.ok) throw new Error('Could not load manifest.json');
         const manifest = await manifestRes.json();
 
+        let db = null;
+        try {
+          db = await openDb();
+          if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+        } catch (e) { console.warn('IndexedDB unavailable, caching disabled', e); }
+
         const totalBytes = manifest.totalSize;
         let loadedBytes = 0;
+        let cachedCount = 0;
         const parts = [];
+        const setProgress = (label) => {
+          const pct = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+          barEl.style.width = pct + '%';
+          statusEl.textContent = `${label} (${(loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB) - ${pct}%`;
+        };
 
-        for (let i = 0; i < manifest.chunks.length; i++) {
-          const chunk = manifest.chunks[i];
-          const res = await fetch(ROM_BASE + chunk.name);
-          if (!res.ok) throw new Error('Failed to fetch ' + chunk.name);
-
-          const reader = res.body.getReader();
-          const subChunks = [];
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            subChunks.push(value);
-            loadedBytes += value.byteLength;
-            const pct = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
-            barEl.style.width = pct + '%';
-            statusEl.textContent = `Loading game disc (${(loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB) — ${pct}%`;
+        for (const chunk of manifest.chunks) {
+          const key = chunk.sha256 ? chunk.name + ':' + chunk.sha256 : null;
+          let blob = null;
+          if (db && key) {
+            try {
+              const hit = await idb(db, 'readonly', s => s.get(key));
+              if (hit && hit.size === chunk.size) { blob = hit; cachedCount++; loadedBytes += chunk.size; setProgress('Loading from local cache'); }
+            } catch (e) { console.warn('cache read failed', e); }
           }
-          parts.push(new Blob(subChunks));
+          if (!blob) {
+            const res = await fetch(ROM_BASE + chunk.name);
+            if (!res.ok) throw new Error('Failed to fetch ' + chunk.name + ' (HTTP ' + res.status + ')');
+            const reader = res.body.getReader();
+            const subChunks = [];
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              subChunks.push(value);
+              loadedBytes += value.byteLength;
+              setProgress('Downloading game disc');
+            }
+            blob = new Blob(subChunks);
+            if (chunk.sha256 && (await sha256(blob)) !== chunk.sha256) throw new Error('Integrity check failed for ' + chunk.name);
+            if (db && key) {
+              try {
+                await idb(db, 'readwrite', s => s.put(blob, key));
+              } catch (e) { console.warn('cache write failed (quota?)', e); }
+            }
+          }
+          parts.push(blob);
+        }
+
+        // Remove chunks from older disc versions
+        if (db) {
+          try {
+            const valid = new Set(manifest.chunks.filter(c => c.sha256).map(c => c.name + ':' + c.sha256));
+            const keys = await idb(db, 'readonly', s => s.getAllKeys());
+            for (const k of keys) if (!valid.has(k)) await idb(db, 'readwrite', s => s.delete(k));
+          } catch (e) { console.warn('cache cleanup failed', e); }
+        }
+        if (navigator.storage && navigator.storage.estimate) {
+          navigator.storage.estimate().then(e => console.log(`[DW1] ${cachedCount}/${manifest.chunks.length} chunks from cache. Storage used: ${(e.usage / 1048576).toFixed(0)} MB of ${(e.quota / 1048576).toFixed(0)} MB`));
         }
 
         const romFile = new File(parts, manifest.fileName || 'Digimon World (Europe).zip');
-
         window.EJS_player = '#game';
         window.EJS_core = 'psx';
         window.EJS_gameName = 'Digimon World (Europe)';
