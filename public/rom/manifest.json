@@ -1,6 +1,6 @@
 {
   "fileName": "Digimon World (Europe).zip",
-  "totalSize": 239350385,
+  "totalSize": 239620691,
   "chunks": [
     {
       "name": "part0.bin",
@@ -20,7 +20,7 @@
     },
     {
       "name": "part4.bin",
-      "size": 38023793
+      "size": 38294099
     }
   ]
 }

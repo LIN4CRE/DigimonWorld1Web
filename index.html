@@ -78,13 +78,13 @@
       const barEl = document.getElementById('progress-bar');
       const overlayEl = document.getElementById('loader-overlay');
 
-      const isLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
-      const ROM_BASE = isLocal
-        ? '/rom/'
-        : 'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
-
+      let ROM_BASE = '/rom/';
       try {
-        const manifestRes = await fetch(ROM_BASE + 'manifest.json');
+        let manifestRes = await fetch(ROM_BASE + 'manifest.json');
+        if (!manifestRes.ok) {
+          ROM_BASE = 'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
+          manifestRes = await fetch(ROM_BASE + 'manifest.json');
+        }
         if (!manifestRes.ok) throw new Error('Could not load manifest.json');
         const manifest = await manifestRes.json();
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const src = 'D:\\games\\Digimon World (Europe).zip';
+const src = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\rom\\Digimon World (Europe).zip';
 const outDir = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\public\\rom';
 fs.mkdirSync(outDir, { recursive: true });
 
