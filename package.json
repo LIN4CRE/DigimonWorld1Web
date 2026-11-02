@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
+    "test": "node --test",
     "patch:rom": "node patch-ps1-rom.mjs",
     "generate:assets": "node generate-github-assets.mjs",
     "extract:data": "node extract-ps1-data.mjs",
