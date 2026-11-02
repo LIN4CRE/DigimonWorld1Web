@@ -37,6 +37,17 @@
 
 ---
 
+## 🆕 Latest Changes
+
+- 🧬 **Expanded 128-slot evolution matrix** — relocated to `0x8011B990` in `SLES_029.14`; all 9 evolution-table pointers repointed, so the extra species can be trained into and evolved from.
+- 🥚 **16 starter Rookies via Jijimon's opening quiz** — new starter table at `0x8011C000`; the quiz spawner at `0x80114B84` was patched so you are no longer limited to Agumon/Gabumon. The naming screen in Map 218 is protected from the change.
+- 🏋️ **Located training data** — Green Gym stat-requirement table (`0x80134A30`, 28 bytes/entry) and base evolution stats (`0x80135114`, 14 bytes/entry) are documented for adding new species.
+- 💾 **IndexedDB disc cache** — the ~240 MB disc is downloaded **once**, verified with SHA-256, and stored in the browser's IndexedDB. Return visits boot from local storage with no re-download; changed chunks are re-fetched automatically and stale chunks removed. Persistent storage is requested and quota/write failures fall back to normal streaming. Run `node add-manifest-hashes.mjs` after re-splitting the ROM to refresh hashes.
+- 🔬 **In progress: Veemon from *Digimon World 3*** — research so far located `M145VMON.BIN` in DW3's disc and decoded its `RLEN`-compressed texture. Veemon is **not yet in the game**; converting the model into DW1's `.MMD` format is still to do. (DW3 assets are never committed to this repo.)
+
+**Next up:** Memory-card save export/import, gamepad polish, progressive first-playable loading.
+
+---
 ## 🖼️ Decoded 3D File Island Maps & HD 3D Cards
 
 All pre-rendered 3D File Island room backgrounds (`MAP/*.TFS`), 3D Bandai Digimon Cards (`CARD/*.TIM`), and UI textures were reverse-engineered and decoded directly from the CD-ROM sectors into `public/`:
@@ -151,6 +162,8 @@ DigimonWorld1Web/
 │   └── data/
 │       └── reverse-engineered-db.json  # Complete extracted 127-Digimon, 121-Move, 128-Item & MIPS database
 ├── server.mjs                      # Zero-dependency Node.js HTTP 206 Range-Streaming Server & MIPS Disassembler API
+├── add-manifest-hashes.mjs         # Adds SHA-256 hashes + version to the ROM chunk manifest (IndexedDB cache)
+├── split-rom-for-pages.mjs         # Splits the patched disc zip into <50 MB streamable chunks
 ├── patch-ps1-rom.mjs               # Binary ROM Patcher unlocking all 127 Digimon in SLES_029.14, EVL_REL.BIN & *.MMD
 ├── extract-ps1-data.mjs            # ISO-9660 Sector Extractor & SLES_029.14 Struct Parser
 ├── extract-ps1-textures.mjs        # PS1 4/8/16-BPP .TIM Texture & 3D Card Decoder

@@ -4,23 +4,29 @@
   "chunks": [
     {
       "name": "part0.bin",
-      "size": 50331648
+      "size": 50331648,
+      "sha256": "bc48d9d4a6388b9853de92b421a1ba845d5e0efd5a85528a1ab3ae10ecf5a92b"
     },
     {
       "name": "part1.bin",
-      "size": 50331648
+      "size": 50331648,
+      "sha256": "fbf2a1c0788bf419759d58dc698f2b26bac845a69aef6143ee123b7d1ec80c6f"
     },
     {
       "name": "part2.bin",
-      "size": 50331648
+      "size": 50331648,
+      "sha256": "12a01463bdbe70a9b3a47b8092d891e682a3a36882f76aba2f90cfbaa7ee8a4b"
     },
     {
       "name": "part3.bin",
-      "size": 50331648
+      "size": 50331648,
+      "sha256": "003ead1fdc94f1b9bb20e4807b30e5673f41cdf0c28ac9b35d4a088933d55e7f"
     },
     {
       "name": "part4.bin",
-      "size": 38294099
+      "size": 38294099,
+      "sha256": "5cf3b0520007b3f7136e2193fdfe6f3507da2d8191be85a11bd118c62ad87478"
     }
-  ]
+  ],
+  "version": "1dd1f3fd048dd70f"
 }

@@ -18,4 +18,5 @@ for (let i = 0, idx = 0; i < buf.length; i += chunkSize, idx++) {
 }
 
 fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+console.log('Run `node add-manifest-hashes.mjs` next to add SHA-256 hashes + cache version for IndexedDB caching.');
 console.log('✓ Split complete! Total chunks:', manifest.chunks.length);
