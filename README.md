@@ -4,14 +4,12 @@
 
 <br />
 
-# 🦖 Digimon World 1 — HD Web Edition (`SLES-02914`)
-### **Instant Browser-Playable 3D PS1 Game • 2x Neon HD • All 127 Digimon Unlocked as Raiseable Partners**
+# 🦖 Digimon World 1 — Web Edition (`SLES-02914`)
+### **Play the Real PlayStation 1 Game Directly in Your Browser**
 
-[![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://github.com/LIN4CRE/DigimonWorld1Web)
-[![Resolution](https://img.shields.io/badge/Graphics-2x_Neon_HD_(WebGL2)-06b6d4?style=for-the-badge)](https://github.com/LIN4CRE/DigimonWorld1Web)
-[![Digimon Roster](https://img.shields.io/badge/Playable_Partners-127_/_127_Unlocked-10b981?style=for-the-badge)](https://github.com/LIN4CRE/DigimonWorld1Web#-all-66-newly-unlocked-overworld--boss--cut-digimon-62127)
-[![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://github.com/LIN4CRE/DigimonWorld1Web)
-[![Reverse Engineered](https://img.shields.io/badge/Reverse_Engineered-REA_v6.7.0-3b82f6?style=for-the-badge)](https://github.com/morluto/rea)
+[![Play Now on GitHub Pages](https://img.shields.io/badge/▶️_PLAY_LIVE_IN_BROWSER-lin4cre.github.io%2FDigimonWorld1Web-22c55e?style=for-the-badge)](https://lin4cre.github.io/DigimonWorld1Web/)
+[![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://lin4cre.github.io/DigimonWorld1Web/)
+[![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://lin4cre.github.io/DigimonWorld1Web/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-eab308?style=for-the-badge)](LICENSE)
 
 <p align="center">

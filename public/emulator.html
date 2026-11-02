@@ -3,470 +3,132 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Digimon World (Europe) — Playable HD Web Edition (127 Digimon Unlocked)</title>
-  <meta name="description" content="Instant browser-playable HD edition of Digimon World 1 (SLES-02914) with 2x Neon HD rendering and all 127 Digimon unlocked as raiseable partners via binary ROM & MMD patches." />
-  <meta name="theme-color" content="#f59e0b" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="alternate icon" href="/favicon.ico" />
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <!-- OpenGraph / GitHub Social Card -->
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Digimon World 1 — HD Web Edition (All 127 Digimon Unlocked)" />
-  <meta property="og:description" content="Play Digimon World (SLES-02914) directly in your browser in 2x Neon HD with all 127 Digimon (including 66 Overworld, Boss & Cut Digimon) unlocked as playable partners." />
-  <meta property="og:image" content="/assets/social-preview.png" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Digimon World 1 — HD Web Edition (All 127 Digimon Unlocked)" />
-  <meta name="twitter:description" content="Play Digimon World (SLES-02914) directly in your browser in 2x Neon HD with all 127 Digimon unlocked." />
-  <meta name="twitter:image" content="/assets/social-preview.png" />
+  <title>Digimon World (Europe)</title>
+  <meta name="theme-color" content="#000000" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="alternate icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <style>
-    :root {
-      --bg-dark: #04070f;
-      --bg-bar: #0a1020;
-      --bg-card: #131d36;
-      --border: #24355e;
-      --accent-gold: #f59e0b;
-      --accent-cyan: #06b6d4;
-      --accent-green: #10b981;
-      --text-main: #f1f5f9;
-      --text-muted: #94a3b8;
-    }
-
     * {
       box-sizing: border-box;
-    }
-
-    html, body {
       margin: 0;
       padding: 0;
+    }
+    html, body {
       width: 100%;
       height: 100%;
-      background: var(--bg-dark);
-      color: var(--text-main);
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, -apple-system, sans-serif;
       overflow: hidden;
+    }
+    #game {
+      width: 100vw;
+      height: 100vh;
+    }
+    #loader-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
       display: flex;
       flex-direction: column;
-    }
-
-    .top-bar {
-      display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 8px 16px;
-      background: var(--bg-bar);
-      border-bottom: 1px solid var(--border);
-      gap: 12px;
-      flex-wrap: wrap;
-      z-index: 30;
+      justify-content: center;
+      gap: 16px;
+      z-index: 9999;
     }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand img {
-      width: 44px;
-      height: 34px;
-      object-fit: cover;
-      border-radius: 5px;
-      border: 1px solid var(--accent-gold);
-    }
-
-    .brand-title {
-      font-weight: 800;
-      font-size: 0.92rem;
-      letter-spacing: 0.02em;
-      background: linear-gradient(90deg, #fbbf24, #38bdf8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .brand-sub {
-      font-size: 0.68rem;
-      color: var(--text-muted);
-      font-family: monospace;
-    }
-
-    .controls-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .select-ctrl {
-      background: var(--bg-card);
-      color: var(--text-main);
-      border: 1px solid var(--border);
-      padding: 6px 10px;
-      border-radius: 7px;
-      font-size: 0.78rem;
+    #loader-title {
+      font-size: 18px;
       font-weight: 600;
-      outline: none;
-      max-width: 280px;
+      color: #f8fafc;
+      letter-spacing: 0.4px;
     }
-
-    .select-ctrl:focus {
-      border-color: var(--accent-gold);
+    #progress-wrap {
+      width: min(380px, 80vw);
+      height: 10px;
+      background: #1e293b;
+      border-radius: 999px;
+      overflow: hidden;
     }
-
-    .btn {
-      background: var(--bg-card);
-      color: var(--text-main);
-      border: 1px solid var(--border);
-      padding: 6px 12px;
-      border-radius: 7px;
-      font-size: 0.76rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.15s ease;
-      white-space: nowrap;
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background: #f59e0b;
+      transition: width 0.15s ease;
     }
-
-    .btn:hover {
-      border-color: var(--accent-gold);
-      color: #fbbf24;
-    }
-
-    .btn-gold {
-      background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(234, 88, 12, 0.25));
-      border-color: var(--accent-gold);
-      color: #fbbf24;
-    }
-
-    .btn-cyan {
-      background: rgba(6, 182, 212, 0.18);
-      border-color: rgba(6, 182, 212, 0.5);
-      color: #22d3ee;
-    }
-
-    .btn-green {
-      background: rgba(16, 185, 129, 0.18);
-      border-color: rgba(16, 185, 129, 0.5);
-      color: #34d399;
-    }
-
-    .status-toast {
+    #loader-status {
+      font-size: 13px;
+      color: #94a3b8;
       font-family: monospace;
-      font-size: 0.74rem;
-      color: #34d399;
-      padding: 4px 10px;
-      border-radius: 6px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      display: none;
-    }
-
-    #game-container {
-      flex: 1;
-      width: 100%;
-      height: 100%;
-      position: relative;
-      background: #000;
-      transition: filter 0.2s ease;
-    }
-
-    #game {
-      width: 100%;
-      height: 100%;
-    }
-
-    /* HD Post-Processing Presets */
-    #game-container.hd-vivid {
-      filter: contrast(1.08) saturate(1.18) brightness(1.03);
-    }
-    #game-container.hd-cinema {
-      filter: contrast(1.14) saturate(1.25) drop-shadow(0 0 18px rgba(56, 189, 248, 0.2));
-    }
-    #game-container.hd-sharp canvas {
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
-    }
-    #game-container.hd-smooth canvas {
-      image-rendering: auto;
     }
   </style>
 </head>
 <body>
-  <header class="top-bar">
-    <div class="brand">
-      <img src="/textures/TITLE256.png" alt="Digimon World" />
-      <div>
-        <div class="brand-title">DIGIMON WORLD (EUROPE) — HD UNLOCKED EDITION</div>
-        <div class="brand-sub">SLES-02914 Patched ROM • All 127 Digimon (Overworld, Bosses &amp; Cut Ultimates) Playable</div>
-      </div>
+  <div id="loader-overlay">
+    <div id="loader-title">Digimon World (Europe)</div>
+    <div id="progress-wrap">
+      <div id="progress-bar"></div>
     </div>
-
-    <!-- Live Partner Digimon Unlocker (Injects into PS1 RAM 0x8013BFE0) -->
-    <div class="controls-group">
-      <label for="partnerSelect" style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">🦖 Own / Digivolve To:</label>
-      <select id="partnerSelect" class="select-ctrl" title="Choose any of the 127 Digimon on the disc (including Overworld & Boss Digimon)">
-        <optgroup label="🔥 Cut &amp; Hidden Ultimates (#62-#65)">
-          <option value="63">★ #63 Panjyamon (PANJ.MMD • Fist of Beast King)</option>
-          <option value="64">★ #64 Gigadramon (GGDR.MMD • Genocide Attack)</option>
-          <option value="65">★ #65 MetalEtemon (MTET.MMD • Dark Concert Crush)</option>
-          <option value="62">★ #62 WereGarurumon (Restored Slot)</option>
-        </optgroup>
-        <optgroup label="👹 Overworld, Wild &amp; Boss Digimon (#66-#127)">
-          <option value="115" selected>⚡ #115 Machinedramon (MUGE.MMD • Infinity Cannon)</option>
-          <option value="66">🧛 #66 Myotismon (VAND.MMD • Aurora Freeze)</option>
-          <option value="70">🐻 #70 WaruMonzaemon (WARU.MMD • Thunder Bolt)</option>
-          <option value="76">🚜 #76 Tankmon (TANK.MMD • Buster Dive)</option>
-          <option value="92">🤖 #92 Guardromon (GARD.MMD • Full Power)</option>
-          <option value="111">🐞 #111 Tentomon (TENT.MMD • Moss Shield)</option>
-          <option value="112">🐍 #112 WaruSeadramon (WRSE.MMD • Confusion Storm)</option>
-          <option value="104">🔥 #104 BlueMeramon (BLMR.MMD • Ice Statue)</option>
-          <option value="100">😈 #100 IceDevimon (ICDV.MMD • Ice Statue)</option>
-          <option value="84">🧱 #84 ToyAgumon (TOYA.MMD • Pepper Breath)</option>
-          <option value="98">💎 #98 ClearAgumon (CLEA.MMD • Pepper Breath)</option>
-          <option value="71">❄️ #71 SnowAgumon (YKAG.MMD • Muscle Charge)</option>
-          <option value="85">👼 #85 Piddomon (PIDD.MMD • Hurricane)</option>
-          <option value="88">🦖 #88 Vermilimon (VARM.MMD • Volcanic Strike)</option>
-          <option value="90">⚔️ #90 Tekkamon (TKKA.MMD • Full Power)</option>
-          <option value="108">🪨 #108 Rockmon (GOLE.MMD • Aurora Freeze)</option>
-          <option value="113">☄️ #113 Meteormon (INSE.MMD • Tremor)</option>
-          <option value="68">🪨 #68 Gotsumon (GOTU.MMD • Tremor)</option>
-          <option value="69">🦎 #69 Flarerizamon (FLAR.MMD • Red Inferno)</option>
-          <option value="101">🦎 #101 Darkrizamon (DKRZ.MMD • Winter Blast)</option>
-          <option value="72">👹 #72 Hyogamon (HYOG.MMD • War Cry)</option>
-          <option value="89">👹 #89 Fugamon (FUGA.MMD • Hurricane)</option>
-          <option value="73">👑 #73 PlatinumSukamon (PCSC.MMD • Ult Poop Bomb)</option>
-          <option value="75">🦄 #75 ShimaUnimon (SIMA.MMD • Electric Cloud)</option>
-          <option value="81">🐻 #81 MudFrigimon (TUTI.MMD • Aqua Magic)</option>
-          <option value="82">🐺 #82 Psychemon (PSYC.MMD • War Cry)</option>
-          <option value="105">🐺 #105 Gururumon (GRUR.MMD • Winter Blast)</option>
-          <option value="106">🦅 #106 Saberdramon (SABD.MMD • Hurricane)</option>
-          <option value="107">👻 #107 Soulmon (SOUL.MMD • Dark Claw)</option>
-          <option value="109">🐸 #109 Otamamon (OTAM.MMD • Water Blitz)</option>
-          <option value="110">🐸 #110 Gekomon (GECO.MMD • Winter Blast)</option>
-          <option value="96">🦇 #96 Tsukaimon (TUKA.MMD • Spinning Shot)</option>
-          <option value="80">👺 #80 Goburimon (GOBR.MMD • Winter Blast)</option>
-          <option value="103">❄️ #103 SnowGoburimon (SNGB.MMD • Winter Blast)</option>
-          <option value="97">👺 #97 Sharmamon (SHAM.MMD • War Cry)</option>
-          <option value="67">🐝 #67 Yanmamon (YANM.MMD • Insect Plague)</option>
-          <option value="102">🐝 #102 SandYanmamon (SNDY.MMD • Hurricane)</option>
-          <option value="74">🐛 #74 Dokunemon (DOKU.MMD • Electric Thread)</option>
-          <option value="86">🌸 #86 Aruraumon (ARUR.MMD • Water Blitz)</option>
-          <option value="91">🐚 #91 MoriShellmon (MRIS.MMD • Aqua Magic)</option>
-          <option value="93">🐧 #93 Muchomon (MCHO.MMD • Super Slap)</option>
-          <option value="94">🧊 #94 Icemon (ICEM.MMD • Ice Needle)</option>
-          <option value="95">🐔 #95 Akatorimon (AKAT.MMD • Confusion Storm)</option>
-          <option value="78">🦍 #78 J-Mojyamon (JMOJ.MMD • Moss Shield)</option>
-          <option value="79">🔩 #79 NiseDrimogemon (NISE.MMD • Muscle Charge)</option>
-          <option value="83">🦎 #83 ModokiBetamon (MODO.MMD • Electric Shock)</option>
-          <option value="77">🌱 #77 RedVegiemon (REDV.MMD • Moss Shield)</option>
-          <option value="99">🌱 #99 Weedmon (ZASS.MMD • Moss Shield)</option>
-          <option value="87">🐌 #87 Geremon (GERE.MMD • Feces For Numemon)</option>
-          <option value="121">🌳 #121 Cherrymon (JURE.MMD • Overworld Boss)</option>
-          <option value="122">⚙️ #122 Hagurumon (HAGU.MMD • Overworld NPC)</option>
-          <option value="123">🤖 #123 Tinmon (BRIK.MMD • Overworld NPC)</option>
-          <option value="124">🦖 #124 Master Tyrannomon (TIRS.MMD • Overworld NPC)</option>
-          <option value="126">🦕 #126 Brachiomon (BRAK.MMD • Overworld NPC)</option>
-        </optgroup>
-        <optgroup label="🏆 Classic Partner Ultimates &amp; Champions (#1-#61)">
-          <option value="12">#12 MetalGreymon (MTLG.MMD)</option>
-          <option value="26">#26 SkullGreymon (SKLG.MMD)</option>
-          <option value="54">#54 Megadramon (MGDR.MMD)</option>
-          <option value="59">#59 Phoenixmon (HOOU.MMD)</option>
-          <option value="60">#60 HerculesKabuterimon (HKAB.MMD)</option>
-          <option value="61">#61 MegaSeadramon (MGSD.MMD)</option>
-          <option value="40">#40 Andromon (ANDR.MMD)</option>
-          <option value="14">#14 Monzaemon (MONZ.MMD)</option>
-          <option value="13">#13 Mamemon (MAME.MMD)</option>
-          <option value="27">#27 MetalMamemon (MTMM.MMD)</option>
-          <option value="41">#41 Giromon (GIRO.MMD)</option>
-          <option value="55">#55 Piximon (PIXI.MMD)</option>
-          <option value="28">#28 Vademon (VADE.MMD)</option>
-          <option value="42">#42 Etemon (ETEM.MMD)</option>
-          <option value="56">#56 Digitamamon (DGTM.MMD)</option>
-          <option value="5">#5 Greymon (GREY.MMD)</option>
-          <option value="6">#6 Devimon (DEVI.MMD)</option>
-          <option value="7">#7 Airdramon (AIRD.MMD)</option>
-          <option value="8">#8 Tyrannomon (TYRA.MMD)</option>
-          <option value="9">#9 Meramon (MERA.MMD)</option>
-          <option value="10">#10 Seadramon (SEAD.MMD)</option>
-          <option value="19">#19 Kabuterimon (KABU.MMD)</option>
-          <option value="20">#20 Angemon (ANGE.MMD)</option>
-          <option value="21">#21 Birdramon (BIRD.MMD)</option>
-          <option value="22">#22 Garurumon (GARU.MMD)</option>
-          <option value="23">#23 Frigimon (FRIG.MMD)</option>
-          <option value="24">#24 Whamon (WHAM.MMD)</option>
-          <option value="33">#33 Unimon (UNIM.MMD)</option>
-          <option value="34">#34 Ogremon (OGRE.MMD)</option>
-          <option value="36">#36 Centarumon (CENT.MMD)</option>
-          <option value="37">#37 Bakemon (BAKE.MMD)</option>
-          <option value="38">#38 Drimogemon (DRIM.MMD)</option>
-          <option value="47">#47 Monochromon (MONO.MMD)</option>
-          <option value="48">#48 Leomon (LEOM.MMD)</option>
-          <option value="49">#49 Coelamon (COEL.MMD)</option>
-          <option value="50">#50 Kokatorimon (KOKA.MMD)</option>
-          <option value="51">#51 Kuwagamon (KUWA.MMD)</option>
-          <option value="52">#52 Mojyamon (MOJY.MMD)</option>
-          <option value="58">#58 Ninjamon (IGAM.MMD)</option>
-          <option value="3">#3 Agumon (AGUM.MMD)</option>
-          <option value="17">#17 Gabumon (GABU.MMD)</option>
-          <option value="31">#31 Patamon (PATA.MMD)</option>
-          <option value="45">#45 Biyomon (PIYO.MMD)</option>
-          <option value="46">#46 Palmon (PALM.MMD)</option>
-          <option value="4">#4 Betamon (BETA.MMD)</option>
-          <option value="18">#18 Elecmon (ELEC.MMD)</option>
-          <option value="32">#32 Kunemon (KUNE.MMD)</option>
-          <option value="57">#57 Penguinmon (PENG.MMD)</option>
-        </optgroup>
-      </select>
-
-      <button class="btn btn-gold" id="btnDigivolveNow" title="Trigger in-game 3D Digivolution into the selected Digimon (Must be standing on any field map)">
-        ✨ Digivolve Partner Now
-      </button>
-      <button class="btn btn-green" id="btnMaxStats" title="Set Partner HP/MP to 9999, Offense/Defense/Speed/Brains to 999, and unlock all 121 moves">
-        ⚡ Max 999 Stats &amp; Moves
-      </button>
-      <span class="status-toast" id="statusToast"></span>
-    </div>
-
-    <!-- HD Quality Preset Selector -->
-    <div class="controls-group">
-      <select id="hdPresetSelect" class="select-ctrl" style="max-width:195px;" title="HD Visual Enhancement Mode">
-        <option value="hd-vivid hd-smooth" selected>🌟 2x Neon HD Remaster</option>
-        <option value="hd-vivid hd-sharp">💎 Crisp 2x Pixel HD</option>
-        <option value="hd-cinema hd-smooth">🎬 Cinema HDR</option>
-        <option value="">📺 Original PS1</option>
-      </select>
-    </div>
-  </header>
-
-  <div id="game-container" class="hd-vivid hd-smooth">
-    <div id="game"></div>
+    <div id="loader-status">Loading game disc... 0%</div>
   </div>
 
+  <div id="game"></div>
+
   <script>
-    function showToast(msg, color = '#34d399') {
-      const el = document.getElementById('statusToast');
-      el.textContent = msg;
-      el.style.color = color;
-      el.style.display = 'inline-block';
-      clearTimeout(window._toastTimer);
-      window._toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4500);
-    }
+    (async function bootGame() {
+      const statusEl = document.getElementById('loader-status');
+      const barEl = document.getElementById('progress-bar');
+      const overlayEl = document.getElementById('loader-overlay');
 
-    document.getElementById('hdPresetSelect').onchange = (e) => {
-      document.getElementById('game-container').className = e.target.value;
-    };
+      try {
+        const manifestRes = await fetch('rom/manifest.json');
+        if (!manifestRes.ok) throw new Error('Could not load rom/manifest.json');
+        const manifest = await manifestRes.json();
 
-    // Locate the 2MB PS1 RAM base offset inside the EmulatorJS WebAssembly HEAPU8
-    // by matching the exact instruction signature of SLES_029.14 @ 0x800AA93C (offset 0x000AA93C in PS1 RAM):
-    // EC 93 82 87 (lh $v0, -27668($gp)) | FF FF 01 24 (addiu $at, $zero, -1) | 0B 00 41 10 (beq $v0, $at, +11)
-    let cachedPs1RamBase = -1;
-    function findPs1RamBase() {
-      const mod = window.EJS_emulator && window.EJS_emulator.gameManager && window.EJS_emulator.gameManager.Module;
-      if (!mod || !mod.HEAPU8) return -1;
-      const heap = mod.HEAPU8;
-      const sig = [0xEC, 0x93, 0x82, 0x87, 0xFF, 0xFF, 0x01, 0x24, 0x0B, 0x00, 0x41, 0x10, 0x00, 0x00, 0x00, 0x00];
+        const totalBytes = manifest.totalSize;
+        let loadedBytes = 0;
+        const parts = [];
 
-      // Check cached base first
-      if (cachedPs1RamBase >= 0 && cachedPs1RamBase + 0x200000 <= heap.length) {
-        let ok = true;
-        for (let k = 0; k < sig.length; k++) {
-          if (heap[cachedPs1RamBase + 0xAA93C + k] !== sig[k]) { ok = false; break; }
+        for (let i = 0; i < manifest.chunks.length; i++) {
+          const chunk = manifest.chunks[i];
+          const res = await fetch('rom/' + chunk.name);
+          if (!res.ok) throw new Error('Failed to fetch ' + chunk.name);
+
+          const reader = res.body.getReader();
+          const subChunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            subChunks.push(value);
+            loadedBytes += value.byteLength;
+            const pct = Math.min(100, Math.round((loadedBytes / totalBytes) * 100));
+            barEl.style.width = pct + '%';
+            statusEl.textContent = `Loading game disc (${(loadedBytes / 1048576).toFixed(1)} / ${(totalBytes / 1048576).toFixed(1)} MB) — ${pct}%`;
+          }
+          parts.push(new Blob(subChunks));
         }
-        if (ok) return cachedPs1RamBase;
+
+        const romFile = new File(parts, manifest.fileName || 'Digimon World (Europe).zip');
+
+        window.EJS_player = '#game';
+        window.EJS_core = 'psx';
+        window.EJS_gameName = 'Digimon World (Europe)';
+        window.EJS_color = '#f59e0b';
+        window.EJS_startOnLoaded = true;
+        window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+        window.EJS_gameUrl = romFile;
+
+        overlayEl.style.display = 'none';
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+        document.body.appendChild(script);
+      } catch (err) {
+        statusEl.style.color = '#ef4444';
+        statusEl.textContent = 'Error loading disc: ' + err.message;
       }
-
-      const limit = heap.length - 0x150000;
-      for (let i = 0xAA93C; i < limit; i += 4) {
-        if (
-          heap[i] === 0xEC && heap[i + 1] === 0x93 && heap[i + 2] === 0x82 && heap[i + 3] === 0x87 &&
-          heap[i + 4] === 0xFF && heap[i + 5] === 0xFF && heap[i + 6] === 0x01 && heap[i + 7] === 0x24 &&
-          heap[i + 8] === 0x0B && heap[i + 9] === 0x00 && heap[i + 10] === 0x41 && heap[i + 11] === 0x10
-        ) {
-          cachedPs1RamBase = i - 0xAA93C;
-          return cachedPs1RamBase;
-        }
-      }
-      return -1;
-    }
-
-    function writeU16(heap, base, ps1Offset, val) {
-      heap[base + ps1Offset] = val & 0xFF;
-      heap[base + ps1Offset + 1] = (val >>> 8) & 0xFF;
-    }
-
-    // Trigger Live 3D In-Game Digivolution into any Digimon #1..#127
-    document.getElementById('btnDigivolveNow').onclick = () => {
-      const targetId = parseInt(document.getElementById('partnerSelect').value, 10);
-      const selText = document.getElementById('partnerSelect').selectedOptions[0].text;
-      const base = findPs1RamBase();
-      const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
-
-      if (base >= 0) {
-        const heap = gm.Module.HEAPU8;
-        // Write Target Digimon ID to 0x8013BFE0 (-27668($gp)) and Item Evo Flag = 1 to 0x8013BFE2 (-27666($gp))
-        writeU16(heap, base, 0x13BFE0, targetId);
-        heap[base + 0x13BFE2] = 1;
-        // Clear Virus/Poop gauge so it doesn't override with Sukamon
-        writeU16(heap, base, 0x13FA46, 0);
-        showToast(`✨ Digivolving into ${selText}! (Stand on any field map)`, '#fbbf24');
-      } else if (gm && typeof gm.toggleCheat === 'function') {
-        const hexId = targetId.toString(16).toUpperCase().padStart(4, '0');
-        const code = `8013BFE0 ${hexId}\n3013BFE2 0001`;
-        gm.toggleCheat('live_evo', code);
-        setTimeout(() => {
-          gm.toggleCheat('live_evo', code);
-        }, 6500);
-        showToast(`✨ Triggered Evolution Cheat -> ${selText}!`, '#fbbf24');
-      } else {
-        showToast(`⏳ Wait for PS1 BIOS & Title Screen to finish loading first!`, '#f87171');
-      }
-    };
-
-    // Max 999 Stats, 9999 HP/MP & All 121 Battle Techniques
-    document.getElementById('btnMaxStats').onclick = () => {
-      const base = findPs1RamBase();
-      const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
-      if (base >= 0) {
-        const heap = gm.Module.HEAPU8;
-        writeU16(heap, base, 0x16C830, 999);  // Offense
-        writeU16(heap, base, 0x16C832, 999);  // Defense
-        writeU16(heap, base, 0x16C834, 999);  // Speed
-        writeU16(heap, base, 0x16C836, 999);  // Brains
-        writeU16(heap, base, 0x16C840, 9999); // Max HP
-        writeU16(heap, base, 0x16C842, 9999); // Max MP
-        writeU16(heap, base, 0x16C844, 9999); // Current HP
-        writeU16(heap, base, 0x16C846, 9999); // Current MP
-        writeU16(heap, base, 0x13FA46, 0);    // Clear Virus Gauge
-        // Unlock all 121 techniques in bitmask (0x8016C850..0x8016C85F)
-        for (let b = 0; b < 16; b++) {
-          heap[base + 0x16C850 + b] = 0xFF;
-        }
-        showToast(`⚡ Partner boosted to 999 Stats, 9999 HP/MP & All 121 Moves!`, '#34d399');
-      } else {
-        showToast(`⏳ Wait for the game to boot past the Title Screen first!`, '#f87171');
-      }
-    };
-
-    // Auto-boot Patched Digimon World (Europe).bin in 2x Neon HD
-    EJS_player = '#game';
-    EJS_core = 'psx';
-    EJS_gameName = 'Digimon World (Europe) [SLES-02914] HD Unlocked';
-    EJS_color = '#f59e0b';
-    EJS_startOnLoaded = true;
-    EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
-    EJS_gameUrl = '/rom/Digimon%20World%20(Europe).bin';
-
-    EJS_defaultOptions = {
-      'pcsx_rearmed_neon_enhancement_enable': 'enabled',
-      'pcsx_rearmed_neon_enhancement_no_main': 'disabled',
-      'pcsx_rearmed_dithering': 'disabled',
-      'pcsx_rearmed_duping_enable': 'enabled',
-      'pcsx_rearmed_show_bios_bootlogo': 'disabled'
-    };
+    })();
   </script>
-  <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 </body>
 </html>
