@@ -1,4 +1,4 @@
-rom
-extracted
+/rom
+/extracted
 node_modules
 .git

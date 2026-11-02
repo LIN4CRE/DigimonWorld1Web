@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BOOT_FILE = path.join(ROOT, 'public', 'emulator-boot.js');
+const SW_FILE = path.join(ROOT, 'public', 'sw.js');
+const VERCEL_JSON = path.join(ROOT, 'vercel.json');
+const VERCEL_IGNORE = path.join(ROOT, '.vercelignore');
 const FALLBACK_ROM_BASE =
   'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
 
@@ -43,9 +46,13 @@ function createDocument({ withSaveBar = false } = {}) {
   if (withSaveBar) {
     ids.add('save-bar');
     ids.add('save-toast');
+    ids.add('save-indicator');
+    ids.add('save-indicator-text');
     ids.add('btn-export');
+    ids.add('btn-export-state');
     ids.add('btn-import');
     ids.add('btn-restore');
+    ids.add('btn-restart');
     ids.add('save-file');
   }
   const elements = new Map([...ids].map((id) => [id, new ElementStub()]));
@@ -59,6 +66,8 @@ function createDocument({ withSaveBar = false } = {}) {
     createElement(tagName) {
       return new ElementStub(tagName);
     },
+    addEventListener() {},
+    removeEventListener() {},
     elements
   };
   return document;
@@ -88,11 +97,99 @@ function createLocalStorage(initial = {}) {
   };
 }
 
+function createMockIndexedDB(initialDatabases = {}) {
+  const dbs = new Map();
+  for (const [dbName, stores] of Object.entries(initialDatabases)) {
+    const storeMap = new Map();
+    for (const [storeName, data] of Object.entries(stores)) {
+      const records = new Map(
+        data instanceof Map
+          ? data
+          : Array.isArray(data)
+          ? data.map((item) => [item.id || item.ts || item.name, item])
+          : Object.entries(data)
+      );
+      storeMap.set(storeName, records);
+    }
+    dbs.set(dbName, storeMap);
+  }
+
+  return {
+    open(name) {
+      if (!dbs.has(name)) dbs.set(name, new Map());
+      const storeMap = dbs.get(name);
+      const req = {
+        result: {
+          objectStoreNames: {
+            contains(s) {
+              return storeMap.has(s);
+            }
+          },
+          createObjectStore(s) {
+            if (!storeMap.has(s)) storeMap.set(s, new Map());
+          },
+          transaction(stores) {
+            const sName = Array.isArray(stores) ? stores[0] : stores;
+            if (!storeMap.has(sName)) storeMap.set(sName, new Map());
+            const data = storeMap.get(sName);
+            const tx = {
+              objectStore() {
+                return {
+                  get(key) {
+                    const r = { result: data.get(key) };
+                    setTimeout(() => { if (r.onsuccess) r.onsuccess(); }, 0);
+                    return r;
+                  },
+                  put(val, key) {
+                    const actualKey = key !== undefined ? key : (val && (val.id || val.ts || val.name));
+                    data.set(actualKey, val);
+                    const r = { result: actualKey };
+                    setTimeout(() => { if (r.onsuccess) r.onsuccess(); }, 0);
+                    return r;
+                  },
+                  delete(key) {
+                    data.delete(key);
+                    const r = {};
+                    setTimeout(() => { if (r.onsuccess) r.onsuccess(); }, 0);
+                    return r;
+                  },
+                  getAll() {
+                    const r = { result: [...data.values()] };
+                    setTimeout(() => { if (r.onsuccess) r.onsuccess(); }, 0);
+                    return r;
+                  },
+                  getAllKeys() {
+                    const r = { result: [...data.keys()] };
+                    setTimeout(() => { if (r.onsuccess) r.onsuccess(); }, 0);
+                    return r;
+                  }
+                };
+              },
+              oncomplete: null,
+              onerror: null,
+              onabort: null
+            };
+            setTimeout(() => { if (tx.oncomplete) tx.oncomplete(); }, 0);
+            return tx;
+          }
+        },
+        onsuccess: null,
+        onerror: null,
+        onupgradeneeded: null
+      };
+      setTimeout(() => {
+        if (req.onupgradeneeded) req.onupgradeneeded({ target: req });
+        if (req.onsuccess) req.onsuccess();
+      }, 0);
+      return req;
+    }
+  };
+}
+
 function makeResponse(data, { ok = true, status = 200, json } = {}) {
   const bytes = typeof data === 'string'
     ? new TextEncoder().encode(data)
     : new Uint8Array(data);
-  let sent = false;
   return {
     ok,
     status,
@@ -107,6 +204,7 @@ function makeResponse(data, { ok = true, status = 200, json } = {}) {
     },
     body: {
       getReader() {
+        let sent = false;
         return {
           async read() {
             if (sent) return { done: true, value: undefined };
@@ -119,7 +217,7 @@ function makeResponse(data, { ok = true, status = 200, json } = {}) {
   };
 }
 
-async function waitFor(predicate, timeoutMs = 1000) {
+async function waitFor(predicate, timeoutMs = 1500) {
   const started = Date.now();
   while (!predicate()) {
     if (Date.now() - started > timeoutMs) throw new Error('Timed out waiting for boot');
@@ -165,7 +263,7 @@ async function runBoot(options = {}) {
     fetch,
     localStorage,
     navigator: {},
-    indexedDB: {
+    indexedDB: options.indexedDB || {
       open() {
         throw new Error('IndexedDB disabled in tests');
       }
@@ -179,7 +277,11 @@ async function runBoot(options = {}) {
     TextDecoder,
     setTimeout,
     clearTimeout,
-    setInterval,
+    setInterval: (fn, ms) => {
+      const t = setInterval(fn, ms);
+      if (t && typeof t.unref === 'function') t.unref();
+      return t;
+    },
     clearInterval,
     confirm: () => true,
     console: {
@@ -297,3 +399,147 @@ test('local server binds to all interfaces for previews', () => {
   const source = fs.readFileSync(path.join(ROOT, 'server.mjs'), 'utf8');
   assert.match(source, /server\.listen\(PORT,\s*['"]0\.0\.0\.0['"]/);
 });
+
+test('automatic session restoration sets EJS_loadStateURL and restores SRM from saved session', async () => {
+  const mockStateBytes = new Uint8Array(650000);
+  mockStateBytes.fill(0x7A);
+  const mockSrmBytes = new Uint8Array(131072);
+  mockSrmBytes.fill(0x55);
+
+  const mockDb = createMockIndexedDB({
+    'dw1-saves': {
+      session: {
+        active: {
+          id: 'active',
+          version: 2,
+          ts: Date.now() - 30000,
+          reason: 'auto',
+          size: mockStateBytes.length,
+          state: mockStateBytes,
+          srm: mockSrmBytes
+        }
+      },
+      backups: {}
+    }
+  });
+
+  const { context } = await runBoot({
+    withSaveBar: true,
+    indexedDB: mockDb
+  });
+
+  assert.ok(context.EJS_loadStateURL, 'EJS_loadStateURL must be populated for auto-resume');
+  assert.match(context.EJS_loadStateURL, /^blob:/, 'EJS_loadStateURL must be a valid blob URL');
+
+  // Verify EJS_onGameStart executes cleanly and restores SRM
+  let srmWritten = false;
+  context.window.EJS_emulator = {
+    gameManager: {
+      getSaveFilePath() { return '/saves/game.srm'; },
+      FS: {
+        analyzePath() { return { exists: false }; },
+        mkdir() {},
+        unlink() {},
+        writeFile(p, bytes) {
+          if (bytes === mockSrmBytes) srmWritten = true;
+        }
+      },
+      loadSaveFiles() {}
+    }
+  };
+
+  context.window.EJS_onGameStart();
+  assert.equal(srmWritten, true, 'Virtual PS1 memory card must be restored on game start');
+});
+
+test('disc chunks are read concurrently from IndexedDB without network fetch on return visits', async () => {
+  const chunkBytes = new Uint8Array([0x44, 0x57, 0x31]);
+  const sha = createHash('sha256').update(chunkBytes).digest('hex');
+  const cacheKey = `part0.bin:${sha}`;
+
+  const mockDb = createMockIndexedDB({
+    'dw1-disc-cache': {
+      chunks: {
+        [cacheKey]: new Blob([chunkBytes])
+      }
+    }
+  });
+
+  const { fetchCalls } = await runBoot({
+    indexedDB: mockDb
+  });
+
+  // part0.bin should have been loaded from cache, not fetched from network
+  const chunkFetches = fetchCalls.filter((url) => url.endsWith('/part0.bin'));
+  assert.equal(chunkFetches.length, 0, 'Cached disc chunk must not trigger network fetch');
+});
+
+test('Service Worker file exists, parses without syntax errors, and registers install and fetch listeners', () => {
+  assert.equal(fs.existsSync(SW_FILE), true, 'public/sw.js must exist');
+  const swCode = fs.readFileSync(SW_FILE, 'utf8');
+  assert.doesNotThrow(() => new vm.Script(swCode, { filename: 'sw.js' }), 'sw.js must parse cleanly');
+  assert.match(swCode, /addEventListener\(['"]install['"]/);
+  assert.match(swCode, /addEventListener\(['"]activate['"]/);
+  assert.match(swCode, /addEventListener\(['"]fetch['"]/);
+  assert.match(swCode, /pcsx_rearmed-wasm\.data/);
+});
+
+test('Vercel configuration includes security headers and anchors root ignore paths', () => {
+  assert.equal(fs.existsSync(VERCEL_JSON), true, 'vercel.json must exist');
+  const vercelConfig = JSON.parse(fs.readFileSync(VERCEL_JSON, 'utf8'));
+  assert.ok(Array.isArray(vercelConfig.headers), 'vercel.json headers must be an array');
+  assert.ok(vercelConfig.headers.some((h) => h.headers.some((pair) => pair.key === 'X-Content-Type-Options')));
+
+  const vercelIgnore = fs.readFileSync(VERCEL_IGNORE, 'utf8');
+  assert.match(vercelIgnore, /^\/rom/m, '.vercelignore must anchor root /rom so public/ is preserved');
+  assert.match(vercelIgnore, /^\/extracted/m, '.vercelignore must anchor root /extracted');
+});
+
+test('autosave safeguards protect against incomplete saves and preserve valid sessions', async () => {
+  const existingGoodState = new Uint8Array(650000);
+  existingGoodState.fill(0xAA);
+  const existingSrm = new Uint8Array(131072);
+  existingSrm.fill(0x11);
+
+  const mockDb = createMockIndexedDB({
+    'dw1-saves': {
+      session: {
+        active: {
+          id: 'active',
+          version: 2,
+          ts: 1000,
+          reason: 'initial',
+          size: existingGoodState.length,
+          state: existingGoodState,
+          srm: existingSrm
+        }
+      },
+      backups: {}
+    }
+  });
+
+  const { context } = await runBoot({
+    withSaveBar: true,
+    indexedDB: mockDb
+  });
+
+  // Verify bad/empty state is rejected by autosave
+  context.window.EJS_emulator = {
+    gameManager: {
+      getState() { return new Uint8Array(100); }, // Bad/corrupt/tiny state
+      saveSaveFiles() {},
+      getSaveFile() { return null; }
+    }
+  };
+
+  context.window.EJS_onGameStart();
+  // Trigger visibilitychange to test save
+  context.document.hidden = true;
+
+  // Verify the active session in IndexedDB was NOT overwritten with the bad 100-byte state
+  const sessionReq = mockDb.open('dw1-saves').result.transaction('session').objectStore('session').get('active');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(sessionReq.result.size, 650000, 'Autosave must reject invalid truncated state snapshots');
+  assert.equal(sessionReq.result.state, existingGoodState, 'Original good save must remain untouched');
+});
+

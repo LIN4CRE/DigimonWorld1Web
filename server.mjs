@@ -229,6 +229,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(403);
       return res.end('Forbidden');
     }
+    if (pathname === '/sw.js') res.setHeader('Service-Worker-Allowed', '/');
     const ext = path.extname(safePath).toLowerCase();
     const mime = MIME_TYPES[ext] || 'application/octet-stream';
     return serveFileWithRange(req, res, safePath, mime);
