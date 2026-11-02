@@ -117,6 +117,8 @@ const MIME_TYPES = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
   '.zip': 'application/zip',
   '.bin': 'application/octet-stream',
   '.cue': 'text/plain; charset=utf-8'

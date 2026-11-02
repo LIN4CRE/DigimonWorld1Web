@@ -1,13 +1,35 @@
 {
   "name": "digimon-world-1-web",
-  "version": "1.0.0",
-  "description": "Reverse-Engineered Digimon World (Europe) [SLES_029.14] WebUI, REA Evidence Workbench, MIPS R3000A Disassembler & Browser Edition",
+  "version": "2.0.0",
+  "description": "Playable 2x Neon HD Web Edition of Digimon World 1 (SLES-02914) with all 127 Digimon unlocked via binary ROM & MMD patches",
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "analyze:disc": "node analyze-ps1-disc.mjs",
-    "analyze:sles": "node analyze-sles-and-data.mjs",
-    "build:db": "node build-reverse-engineered-db.mjs"
+    "patch:rom": "node patch-ps1-rom.mjs",
+    "generate:assets": "node generate-github-assets.mjs",
+    "extract:data": "node extract-ps1-data.mjs",
+    "extract:textures": "node extract-ps1-textures.mjs",
+    "extract:maps": "node extract-tfs-maps.mjs",
+    "upscale:hd": "node upscale-hd.mjs"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LIN4CRE/DigimonWorld1Web.git"
+  },
+  "homepage": "https://github.com/LIN4CRE/DigimonWorld1Web#readme",
+  "bugs": {
+    "url": "https://github.com/LIN4CRE/DigimonWorld1Web/issues"
+  },
+  "keywords": [
+    "digimon",
+    "digimon-world",
+    "ps1",
+    "playstation",
+    "sles-02914",
+    "rom-hacking",
+    "reverse-engineering",
+    "webassembly",
+    "hd-remaster"
+  ],
   "license": "MIT"
 }

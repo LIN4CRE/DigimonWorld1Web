@@ -1,0 +1,26 @@
+{
+  "name": "Digimon World 1 — HD Unlocked Web Edition",
+  "short_name": "DigimonWorld1",
+  "description": "PlayStation 1 Digimon World (Europe SLES-02914) in 2x Neon HD with all 127 Digimon unlocked as playable partners.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#04070f",
+  "theme_color": "#f59e0b",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

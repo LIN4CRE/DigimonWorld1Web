@@ -1,0 +1,52 @@
+name: CI — Verify Scripts & Extracted Assets
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax-check all ES module scripts
+        run: |
+          node --check server.mjs
+          node --check patch-ps1-rom.mjs
+          node --check extract-ps1-data.mjs
+          node --check extract-ps1-textures.mjs
+          node --check extract-tfs-maps.mjs
+          node --check upscale-hd.mjs
+          node --check generate-github-assets.mjs
+
+      - name: Verify reverse-engineered database & GitHub assets
+        run: |
+          node -e '
+            const fs = require("fs");
+            const db = JSON.parse(fs.readFileSync("public/data/reverse-engineered-db.json", "utf8"));
+            if (!db.digimon || db.digimon.length !== 127) throw new Error("Expected 127 Digimon in reverse-engineered-db.json");
+            if (!db.techniques || db.techniques.length !== 121) throw new Error("Expected 121 Techniques in reverse-engineered-db.json");
+            if (!db.items || db.items.length !== 128) throw new Error("Expected 128 Items in reverse-engineered-db.json");
+            for (const reqFile of [
+              "public/assets/github-banner.svg",
+              "public/assets/social-preview.png",
+              "public/favicon.svg",
+              "public/favicon.ico",
+              "public/apple-touch-icon.png",
+              "public/icon-192.png",
+              "public/icon-512.png",
+              "public/manifest.webmanifest"
+            ]) {
+              if (!fs.existsSync(reqFile)) throw new Error("Missing required asset: " + reqFile);
+            }
+            console.log("✓ Verified 127 Digimon, 121 Techniques, 128 Items, and all GitHub branding assets!");
+          '
