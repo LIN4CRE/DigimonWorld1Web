@@ -45,6 +45,7 @@
 - 💾 **IndexedDB disc cache** — the ~240 MB disc is downloaded **once**, verified with SHA-256, and stored in the browser's IndexedDB. Return visits boot from local storage with no re-download; changed chunks are re-fetched automatically and stale chunks removed. Persistent storage is requested and quota/write failures fall back to normal streaming. Run `node add-manifest-hashes.mjs` after re-splitting the ROM to refresh hashes.
 - 💾 **Memory-card save export / import** — top-right buttons (appear once the game starts): **Export save** downloads your memory card as a .srm file (compatible with other PS1 emulators), **Import save** loads one, **Restore backup** rolls back. Automatic versioned backups (last 10) are written to IndexedDB every 2 minutes and before every import, so nothing is overwritten silently.
 - 🔬 **In progress: Veemon from *Digimon World 3*** — research so far located `M145VMON.BIN` in DW3's disc and decoded its `RLEN`-compressed texture. Veemon is **not yet in the game**; converting the model into DW1's `.MMD` format is still to do. (DW3 assets are never committed to this repo.)
+- 🐉 **Veemon patch update** – added Veemon as a blue stand‑in using Agumon's model and texture (ID 114). Replaces Goburimon in starter pool; evolves from Koromon into six Champions.
 
 **Next up:** gamepad polish, progressive first-playable loading.
 
