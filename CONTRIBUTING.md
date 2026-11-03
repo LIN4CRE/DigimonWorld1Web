@@ -18,11 +18,18 @@ Thank you for your interest in contributing to **DigimonWorld1Web**! Whether you
    ```bash
    npm start
    ```
-5. **Verify Syntax & Asset Generation**:
+5. **Verify Syntax, Regression Tests & Asset Generation**:
    ```bash
    node --check server.mjs
    node --check patch-ps1-rom.mjs
+   node --check rom-expansion.mjs
+   npm test
    node generate-github-assets.mjs
+   ```
+
+   The ROM tests do not need a game dump. To preserve your clean dump while checking a full patch build, use:
+   ```bash
+   node patch-ps1-rom.mjs --input /path/to/clean.bin --output /path/to/patched.bin
    ```
 
 ## ⚠️ Important Rules
