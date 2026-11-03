@@ -367,7 +367,7 @@ test('shared boot script is valid and forces the OpenBIOS-backed PCSX-ReARMed co
   assert.equal(context.DW1_DISC_PATCH.version, 2);
   assert.ok(Array.isArray(context.DW1_DISC_PATCH.ranges));
   assert.ok(context.DW1_BOOT_DIAGNOSTICS);
-  assert.equal(context.DW1_BOOT_DIAGNOSTICS.version, '2.2.3');
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.version, '2.2.4');
   for (const stage of ['bootScript', 'manifest', 'chunks', 'disc', 'bios', 'patchData', 'coreSettings', 'emulatorConfig']) {
     assert.equal(context.DW1_BOOT_DIAGNOSTICS.stages[stage].status, 'ok', `${stage} must succeed`);
   }
@@ -387,15 +387,43 @@ test('shared boot script is valid and forces the OpenBIOS-backed PCSX-ReARMed co
   assert.equal(primed.settings.pcsx_rearmed_show_bios_bootlogo, 'disabled');
   assert.equal('beetle_psx_hw_override_bios' in primed.settings, false);
   assert.equal(primed.controlSettings.favorite, true);
-  assert.equal(primed.controlSettings[0][0].value, 'custom', 'User-customised controls must be preserved');
-  assert.equal(primed.controlSettings[0][3].value, 'enter', 'Default Start binding must be seeded');
+  assert.equal(primed.controlSettings[0][0].value, 'custom', 'Unknown custom bindings must be preserved');
+  assert.equal(primed.controlSettings[0][3].value, 13, 'Default Start binding must be seeded as a key code');
   assert.equal(primed.controlSettings[0][3].value2, 'START');
-  assert.equal(primed.controlSettings[0][8].value, 'z', 'Default Square binding must be seeded');
+  assert.equal(primed.controlSettings[0][8].value, 90, 'Default Square binding must be seeded as a key code');
   assert.ok(primed.controlSettings[1] && typeof primed.controlSettings[1] === 'object', 'Player 2 controls must exist');
   assert.ok(primed.controlSettings[2] && typeof primed.controlSettings[2] === 'object', 'Player 3 controls must exist');
   assert.ok(primed.controlSettings[3] && typeof primed.controlSettings[3] === 'object', 'Player 4 controls must exist');
   assert.deepEqual(primed.cheats, []);
   assert.equal(localStorage.getItem('ejs-settings'), JSON.stringify({ volume: 0.5, muted: false }));
+});
+
+test('legacy human-readable key bindings migrate to numeric key codes EmulatorJS can match', async () => {
+  const staleKey = 'ejs-1-psx-Digimon World (Europe)-settings';
+  const legacySettings = {
+    settings: {},
+    controlSettings: {
+      0: {
+        3: { value: 'enter', value2: 'START' },
+        4: { value: 'up arrow', value2: 'DPAD_UP' },
+        9: { value: 'a', value2: 'BUTTON_3' },
+        17: { value: 'f', value2: 'LEFT_STICK_X:-1' }
+      }
+    },
+    cheats: []
+  };
+
+  const { localStorage } = await runBoot({
+    localStorage: { [staleKey]: JSON.stringify(legacySettings) }
+  });
+  const primed = JSON.parse(localStorage.getItem(staleKey));
+
+  assert.equal(primed.controlSettings[0][3].value, 13);
+  assert.equal(primed.controlSettings[0][4].value, 38);
+  assert.equal(primed.controlSettings[0][9].value, 65);
+  assert.equal(primed.controlSettings[0][17].value, 70);
+  assert.equal(typeof primed.controlSettings[0][3].value, 'number');
+  assert.equal(primed.controlSettings[0][3].value2, 'START');
 });
 
 test('boot falls back to the GitHub-hosted ROM manifest when local chunks are unavailable', async () => {
@@ -410,7 +438,7 @@ test('all HTML entry points load the shared boot script and contain no stale emu
   const htmlFiles = ['index.html', 'public/index.html', 'public/emulator.html'];
   for (const relative of htmlFiles) {
     const html = fs.readFileSync(path.join(ROOT, relative), 'utf8');
-    assert.match(html, /emulator-boot\.js\?v=2\.2\.3/, `${relative} must load the versioned shared boot script`);
+    assert.match(html, /emulator-boot\.js\?v=2\.2\.4/, `${relative} must load the versioned shared boot script`);
     assert.doesNotMatch(html, /EJS_core\s*=\s*['"]psx['"]/, `${relative} must not select the generic PSX core`);
     assert.doesNotMatch(html, /cdn\.emulatorjs\.org\/stable/, `${relative} must not use the unpinned CDN path`);
     assert.doesNotMatch(html, /scph5502\.bin/, `${relative} must not request a proprietary BIOS`);
@@ -557,7 +585,7 @@ test('Service Worker file exists, parses without syntax errors, and registers in
   assert.match(swCode, /addEventListener\(['"]activate['"]/);
   assert.match(swCode, /addEventListener\(['"]fetch['"]/);
   assert.match(swCode, /pcsx_rearmed-wasm\.data/);
-  assert.match(swCode, /dw1-v2\.2\.3/);
+  assert.match(swCode, /dw1-v2\.2\.4/);
   assert.match(swCode, /\/bios\/openbios\.bin/);
   assert.match(swCode, /\/rom\/disc-patch-v2\.json/);
   assert.match(swCode, /networkFirst/);
@@ -713,7 +741,8 @@ test('boot source captures global errors and installs stage timeouts', () => {
   assert.match(bootSource, /FS\.write\(stream, bytes, done/);
   assert.match(bootSource, /DEFAULT_PSX_CONTROLS/);
   assert.match(bootSource, /normalizeControlSettings\(data\)/);
-  assert.match(bootSource, /value: 'enter', value2: 'START'/);
+  assert.match(bootSource, /value: 13, value2: 'START'/);
+  assert.match(bootSource, /normalizeKeyCode\(entry\.value\)/);
 });
 
 test('service worker precache and server MIME map cover the new boot assets', () => {
@@ -751,5 +780,5 @@ test('README points to the live Vercel production deployment', () => {
   assert.doesNotMatch(readme, /https:\/\/digimon-world-1-web\.vercel\.app\//);
   assert.match(readme, /https:\/\/lin4cre\.github\.io\/DigimonWorld1Web\//);
   assert.match(readme, /Live deployment/);
-  assert.match(readme, /dw1-v2\.2\.3/);
+  assert.match(readme, /dw1-v2\.2\.4/);
 });

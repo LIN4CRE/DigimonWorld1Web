@@ -29,41 +29,43 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.3';
+  const BOOT_VERSION = '2.2.4';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
-  // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim. An empty
-  // object crashes checkGamepadInputs() and disables keyboard controls, so seed
-  // its exact PSX defaults while preserving any user-customised bindings.
+  // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does
+  // NOT run setupKeys() on it, so values MUST already be numeric key codes.
+  // Seeding the pre-setup human names ("enter", "up arrow") makes keyChange()
+  // compare a string against event.keyCode, which never matches and silently
+  // drops every key press (the intro cutscene then loops forever).
   const DEFAULT_PSX_CONTROLS = {
     0: {
-      0: { value: 'x', value2: 'BUTTON_2' },
-      1: { value: 's', value2: 'BUTTON_4' },
-      2: { value: 'v', value2: 'SELECT' },
-      3: { value: 'enter', value2: 'START' },
-      4: { value: 'up arrow', value2: 'DPAD_UP' },
-      5: { value: 'down arrow', value2: 'DPAD_DOWN' },
-      6: { value: 'left arrow', value2: 'DPAD_LEFT' },
-      7: { value: 'right arrow', value2: 'DPAD_RIGHT' },
-      8: { value: 'z', value2: 'BUTTON_1' },
-      9: { value: 'a', value2: 'BUTTON_3' },
-      10: { value: 'q', value2: 'LEFT_TOP_SHOULDER' },
-      11: { value: 'e', value2: 'RIGHT_TOP_SHOULDER' },
-      12: { value: 'tab', value2: 'LEFT_BOTTOM_SHOULDER' },
-      13: { value: 'r', value2: 'RIGHT_BOTTOM_SHOULDER' },
-      14: { value: '', value2: 'LEFT_STICK' },
-      15: { value: '', value2: 'RIGHT_STICK' },
-      16: { value: 'h', value2: 'LEFT_STICK_X:+1' },
-      17: { value: 'f', value2: 'LEFT_STICK_X:-1' },
-      18: { value: 'g', value2: 'LEFT_STICK_Y:+1' },
-      19: { value: 't', value2: 'LEFT_STICK_Y:-1' },
-      20: { value: 'l', value2: 'RIGHT_STICK_X:+1' },
-      21: { value: 'j', value2: 'RIGHT_STICK_X:-1' },
-      22: { value: 'k', value2: 'RIGHT_STICK_Y:+1' },
-      23: { value: 'i', value2: 'RIGHT_STICK_Y:-1' },
-      24: { value: '1' },
-      25: { value: '2' },
-      26: { value: '3' },
+      0: { value: 88, value2: 'BUTTON_2' }, // x
+      1: { value: 83, value2: 'BUTTON_4' }, // s
+      2: { value: 86, value2: 'SELECT' }, // v
+      3: { value: 13, value2: 'START' }, // enter
+      4: { value: 38, value2: 'DPAD_UP' }, // up arrow
+      5: { value: 40, value2: 'DPAD_DOWN' }, // down arrow
+      6: { value: 37, value2: 'DPAD_LEFT' }, // left arrow
+      7: { value: 39, value2: 'DPAD_RIGHT' }, // right arrow
+      8: { value: 90, value2: 'BUTTON_1' }, // z
+      9: { value: 65, value2: 'BUTTON_3' }, // a
+      10: { value: 81, value2: 'LEFT_TOP_SHOULDER' }, // q
+      11: { value: 69, value2: 'RIGHT_TOP_SHOULDER' }, // e
+      12: { value: 9, value2: 'LEFT_BOTTOM_SHOULDER' }, // tab
+      13: { value: 82, value2: 'RIGHT_BOTTOM_SHOULDER' }, // r
+      14: { value: 0, value2: 'LEFT_STICK' },
+      15: { value: 0, value2: 'RIGHT_STICK' },
+      16: { value: 72, value2: 'LEFT_STICK_X:+1' }, // h
+      17: { value: 70, value2: 'LEFT_STICK_X:-1' }, // f
+      18: { value: 71, value2: 'LEFT_STICK_Y:+1' }, // g
+      19: { value: 84, value2: 'LEFT_STICK_Y:-1' }, // t
+      20: { value: 76, value2: 'RIGHT_STICK_X:+1' }, // l
+      21: { value: 74, value2: 'RIGHT_STICK_X:-1' }, // j
+      22: { value: 75, value2: 'RIGHT_STICK_Y:+1' }, // k
+      23: { value: 73, value2: 'RIGHT_STICK_Y:-1' }, // i
+      24: { value: 49 }, // 1
+      25: { value: 50 }, // 2
+      26: { value: 51 }, // 3
       27: {},
       28: {},
       29: {}
@@ -71,6 +73,65 @@
     1: {},
     2: {},
     3: {}
+  };
+  // Migration table for settings saved by earlier builds, which stored the
+  // human-readable names above instead of key codes.
+  const KEY_NAME_TO_CODE = {
+    backspace: 8,
+    tab: 9,
+    enter: 13,
+    shift: 16,
+    ctrl: 17,
+    alt: 18,
+    'pause/break': 19,
+    'caps lock': 20,
+    escape: 27,
+    space: 32,
+    'page up': 33,
+    'page down': 34,
+    end: 35,
+    home: 36,
+    'left arrow': 37,
+    'up arrow': 38,
+    'right arrow': 39,
+    'down arrow': 40,
+    insert: 45,
+    delete: 46,
+    'left window key': 91,
+    'right window key': 92,
+    'select key': 93,
+    multiply: 106,
+    add: 107,
+    subtract: 109,
+    'decimal point': 110,
+    divide: 111,
+    'num lock': 144,
+    'scroll lock': 145,
+    'semi-colon': 186,
+    'equal sign': 187,
+    comma: 188,
+    dash: 189,
+    period: 190,
+    'forward slash': 191,
+    'grave accent': 192,
+    'open bracket': 219,
+    'back slash': 220,
+    'close braket': 221,
+    'single quote': 222
+  };
+  for (let code = 48; code <= 57; code++) KEY_NAME_TO_CODE[String(code - 48)] = code;
+  for (let code = 65; code <= 90; code++) KEY_NAME_TO_CODE[String.fromCharCode(code).toLowerCase()] = code;
+  for (let i = 0; i <= 9; i++) KEY_NAME_TO_CODE['numpad ' + i] = 96 + i;
+  for (let i = 1; i <= 12; i++) KEY_NAME_TO_CODE['f' + i] = 111 + i;
+
+  const normalizeKeyCode = (value) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value !== 'string') return value;
+    const name = value.trim().toLowerCase();
+    if (name === '') return 0;
+    if (/^\d+$/.test(name)) return Number(name);
+    if (Object.prototype.hasOwnProperty.call(KEY_NAME_TO_CODE, name)) return KEY_NAME_TO_CODE[name];
+    return value;
   };
   const BIOS_URLS = [
     '/bios/openbios.bin',
@@ -492,6 +553,29 @@
       originalOnGameStart();
       bootDiagnostics.gameStarted = true;
       setStage('gameStart', 'ok', 'EJS_onGameStart fired');
+      // EmulatorJS listens for keydown on the #game parent. Focus it as soon as
+      // the game starts so the first key press works without requiring a click.
+      try {
+        const parent = document.getElementById('game');
+        if (parent && typeof parent.focus === 'function') parent.focus({ preventScroll: true });
+      } catch (err) {}
+      // EmulatorJS's GamepadHandler polls once in its constructor and can emit
+      // "connected" before EmulatorJS subscribes, so a controller that was
+      // already plugged in stays unassigned. Claim any detected pads now.
+      try {
+        const ejs = window.EJS_emulator;
+        if (ejs && ejs.gamepad && Array.isArray(ejs.gamepad.gamepads) && Array.isArray(ejs.gamepadSelection)) {
+          for (const pad of ejs.gamepad.gamepads) {
+            if (!pad || !pad.id) continue;
+            const id = pad.id + '_' + pad.index;
+            if (ejs.gamepadSelection.includes(id)) continue;
+            const slot = ejs.gamepadSelection.indexOf('');
+            if (slot === -1) break;
+            ejs.gamepadSelection[slot] = id;
+          }
+          if (typeof ejs.updateGamepadLabels === 'function') ejs.updateGamepadLabels();
+        }
+      } catch (err) {}
       setStage('controlsAudio', 'ok', 'EmulatorJS default controls, settings and audio left enabled; headless playback not verified');
       console.log('[DW1] Boot diagnostics', window.DW1_BOOT_DIAGNOSTICS);
       waitForFirstFrame(window.EJS_emulator);
@@ -1158,6 +1242,15 @@
       } else {
         if (current.value === undefined && fallback.value !== undefined) current.value = fallback.value;
         if (current.value2 === undefined && fallback.value2 !== undefined) current.value2 = fallback.value2;
+      }
+    }
+    // Migrate bindings saved by earlier builds as key names ("enter",
+    // "up arrow") into the numeric key codes EmulatorJS compares at runtime.
+    for (let player = 0; player < 4; player++) {
+      for (const entry of Object.values(controls[player])) {
+        if (entry && typeof entry === 'object' && !Array.isArray(entry) && 'value' in entry) {
+          entry.value = normalizeKeyCode(entry.value);
+        }
       }
     }
     data.controlSettings = controls;

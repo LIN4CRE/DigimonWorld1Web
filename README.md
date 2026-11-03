@@ -155,26 +155,34 @@ The committed disc chunks contained an older, boot-breaking patched `SLES_029.14
 - applies a small, auditable [`disc-patch-v2.json`](public/rom/disc-patch-v2.json) to the decompressed disc in the EmulatorJS filesystem, upgrading the committed chunks to the repaired 127-species ROM expansion without replacing the 229 MB chunk files;
 - primes the core options in `localStorage` before core load (EmulatorJS 4.2.3 otherwise applies `EJS_defaultOptions` too late);
 - passes `EJS_biosUrl` as an **absolute URL string**, not a `File`. EmulatorJS 4.2.3's `downloadGameFile()` calls `.split('/')` on the BIOS value before it normalises a `File`, so the previous `File` value threw `TypeError: t.split is not a function`, rejected the boot promise right after the disc mounted, and left the page on a black screen;
+- seeds control bindings as **numeric key codes**. EmulatorJS loads `controlSettings` from `localStorage` without running `setupKeys()`, so the earlier human-readable names (`"enter"`, `"up arrow"`) never equalled `event.keyCode`; the game ignored every key press and looped the intro forever. Existing stored names are migrated automatically on load;
+- focuses the `#game` element when the game starts, so the first key press works without an extra click;
 - serves `index.html`, the boot script, manifest, disc patch and OpenBIOS network-first from the service worker so a redeploy can never be pinned to a stale shell;
 - exposes `window.DW1_BOOT_DIAGNOSTICS` with stage status for website load → manifest → chunks → BIOS → patch → CDN loader → core init → disc mount → `EJS_onGameStart` → first frame, plus stage timeouts and global error capture.
 
-A hard refresh after deploying picks up the versioned boot script and the new service-worker cache. On a browser that already runs the previous service worker, one extra reload after the first visit may be needed for the new `dw1-v2.2.3` cache to take control. No BIOS upload is required. Controls, audio and memory-card saves remain EmulatorJS defaults; headless verification cannot confirm audible sound, but nothing mutes or disables it.
+A hard refresh after deploying picks up the versioned boot script and the new service-worker cache. On a browser that already runs the previous service worker, one extra reload after the first visit may be needed for the new `dw1-v2.2.4` cache to take control. No BIOS upload is required. Audio and memory-card saves remain EmulatorJS defaults; headless verification cannot confirm audible sound, but nothing mutes or disables it.
+
+### Why the controls did nothing
+
+EmulatorJS 4.2.3 compares `controlSettings[player][button].value` directly with `event.keyCode`, a number. The boot script used to seed the pre-`setupKeys()` human names from EmulatorJS's own `defaultControllers` table (`"enter"`, `"up arrow"`, `"z"`). Because `controlSettings` is loaded from `localStorage` verbatim, `setupKeys()` never converted them, so every comparison failed and `simulateInput()` was never called. The emulator rendered the attract cutscene correctly, which made the build look healthy while all input was dropped.
+
+Bindings are now stored as key codes (`13`, `38`, `90`, …) and any legacy names already in a visitor's storage are migrated on load. The `#game` element is also focused at game start so the first key press registers without a click, and controllers that were already connected before EmulatorJS initialised are assigned to player 1 automatically.
 
 ### Validation performed for this fix
 
-- `npm test`: **23/23 passing**, including new checks for OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, control-settings seeding, service-worker precache paths, static MIME types, Vercel cache headers, and the live deployment URL.
-- Production-mode Chromium boot against the unmodified `emulator-boot.js` (`v2.2.3`): all stages reached `ok` — `bootScript`, `session`, `manifest`, `chunks`, `disc`, `coreSettings`, `emulatorConfig`, `bios`, `patchData`, `loader`, `ejsReady`, `discMount`, `discPatch`, `gameStart`, `controlsAudio`, `firstFrame`, and `serviceWorker`.
+- `npm test`: **24/24 passing**, including new checks for OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, numeric control-settings seeding and legacy key-name migration, service-worker precache paths, static MIME types, Vercel cache headers, and the live deployment URL.
+- Production-mode Chromium boot against the unmodified `emulator-boot.js` (`v2.2.4`): all stages reached `ok` — `bootScript`, `session`, `manifest`, `chunks`, `disc`, `coreSettings`, `emulatorConfig`, `bios`, `patchData`, `loader`, `ejsReady`, `discMount`, `discPatch`, `gameStart`, `controlsAudio`, `firstFrame`, and `serviceWorker`.
 - `discPatch` applied **170 ranges / 8,770 bytes** in place with `FS.open('r+')`/`FS.read`/`FS.write`; the old whole-file `readFile`/`writeFile` path exhausted browser memory and was removed from the hot path.
 - A headless run reached actual 3D *Digimon World* gameplay in File City after the Bandai/title/intro sequence, not merely `started=true` or a 1280×720 canvas. Memory-card `.srm` autosave hooks fired during the run.
-- Service worker `dw1-v2.2.3` installed, activated and controlled a reload with **zero missing precache assets**; all local shell, OpenBIOS, licence, patch, manifest, webmanifest and icon URLs returned HTTP 200 with correct MIME types from the local preview server.
+- Service worker `dw1-v2.2.4` installed, activated and controlled a reload with **zero missing precache assets**; all local shell, OpenBIOS, licence, patch, manifest, webmanifest and icon URLs returned HTTP 200 with correct MIME types from the local preview server.
 - `server.mjs` now serves `.md` as `text/markdown` and `.LICENSE` as `text/plain`; Vercel serves the boot script, service worker, OpenBIOS and patch with explicit no-cache/immutable headers.
 - The committed 229 MB `part0.bin`…`part4.bin` and `manifest.json` are unchanged; the 51 KB repair patch is the only new disc asset. No proprietary Sony BIOS is present in the repository.
 
 ### Live deployment
 
-- Primary Vercel production site: **<https://digimon-world-webui.vercel.app/>** — this is the deployment attached to the GitHub `main` branch. It serves `emulator-boot.js` `v2.2.3`, the `dw1-v2.2.3` service worker, `public/bios/openbios.bin`, `public/bios/OpenBIOS.LICENSE` and `public/rom/disc-patch-v2.json`.
-- GitHub Pages mirror: **<https://lin4cre.github.io/DigimonWorld1Web/>** — the same build is published under `/public/`, with `v2.2.3` assets available from `/public/emulator-boot.js` and `/public/sw.js`.
-- The older `digimon-world-1-web.vercel.app` hostname belongs to a separate, stale Vercel deployment and is **not** updated by this repository; use `digimon-world-webui.vercel.app` instead.
+- Primary Vercel production site: **<https://digimon-world-webui.vercel.app/>** — this is the deployment attached to the GitHub `main` branch. It serves `emulator-boot.js` `v2.2.4`, the `dw1-v2.2.4` service worker, `public/bios/openbios.bin`, `public/bios/OpenBIOS.LICENSE` and `public/rom/disc-patch-v2.json`.
+- GitHub Pages mirror: **<https://lin4cre.github.io/DigimonWorld1Web/>** — the same build is published under `/public/`, with `v2.2.4` assets available from `/public/emulator-boot.js` and `/public/sw.js`.
+- The older `digimon-world-1-web.vercel.app` hostname is a separate, stale Vercel project. It now returns a permanent redirect to the primary site and serves a self-destructing service worker that clears the old cache and unregisters itself, so old bookmarks recover automatically.
 - PR [#4](https://github.com/LIN4CRE/DigimonWorld1Web/pull/4) was merged as `4739da4`; Vercel reported `Deployment has completed` and GitHub Pages reported `success`.
 
 ---
