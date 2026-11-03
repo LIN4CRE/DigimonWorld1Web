@@ -9,7 +9,8 @@
  * - Multi-source fallback: Seamless failover from local host to GitHub-hosted ROM chunks
  * - Reliable rollback & data protection: Versioned atomic backups with corrupted save prevention
  * - Multi-tab conflict guard: BroadcastChannel session coordination preventing save clobbering
- * - Pinned PCSX-ReARMed core with built-in HLE BIOS (no proprietary scph5502.bin required)
+ * - Pinned PCSX-ReARMed core with redistributable OpenBIOS; no proprietary Sony firmware
+ * - Runtime repair of the committed patched disc and stage-by-stage boot diagnostics
  */
 (() => {
   'use strict';
@@ -28,10 +29,111 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
+  const BOOT_VERSION = '2.2.2';
+  const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
+  const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
+  // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim. An empty
+  // object crashes checkGamepadInputs() and disables keyboard controls, so seed
+  // its exact PSX defaults while preserving any user-customised bindings.
+  const DEFAULT_PSX_CONTROLS = {
+    0: {
+      0: { value: 'x', value2: 'BUTTON_2' },
+      1: { value: 's', value2: 'BUTTON_4' },
+      2: { value: 'v', value2: 'SELECT' },
+      3: { value: 'enter', value2: 'START' },
+      4: { value: 'up arrow', value2: 'DPAD_UP' },
+      5: { value: 'down arrow', value2: 'DPAD_DOWN' },
+      6: { value: 'left arrow', value2: 'DPAD_LEFT' },
+      7: { value: 'right arrow', value2: 'DPAD_RIGHT' },
+      8: { value: 'z', value2: 'BUTTON_1' },
+      9: { value: 'a', value2: 'BUTTON_3' },
+      10: { value: 'q', value2: 'LEFT_TOP_SHOULDER' },
+      11: { value: 'e', value2: 'RIGHT_TOP_SHOULDER' },
+      12: { value: 'tab', value2: 'LEFT_BOTTOM_SHOULDER' },
+      13: { value: 'r', value2: 'RIGHT_BOTTOM_SHOULDER' },
+      14: { value: '', value2: 'LEFT_STICK' },
+      15: { value: '', value2: 'RIGHT_STICK' },
+      16: { value: 'h', value2: 'LEFT_STICK_X:+1' },
+      17: { value: 'f', value2: 'LEFT_STICK_X:-1' },
+      18: { value: 'g', value2: 'LEFT_STICK_Y:+1' },
+      19: { value: 't', value2: 'LEFT_STICK_Y:-1' },
+      20: { value: 'l', value2: 'RIGHT_STICK_X:+1' },
+      21: { value: 'j', value2: 'RIGHT_STICK_X:-1' },
+      22: { value: 'k', value2: 'RIGHT_STICK_Y:+1' },
+      23: { value: 'i', value2: 'RIGHT_STICK_Y:-1' },
+      24: { value: '1' },
+      25: { value: '2' },
+      26: { value: '3' },
+      27: {},
+      28: {},
+      29: {}
+    },
+    1: {},
+    2: {},
+    3: {}
+  };
+  const BIOS_URLS = [
+    '/bios/openbios.bin',
+    'bios/openbios.bin',
+    '/public/bios/openbios.bin',
+    'public/bios/openbios.bin'
+  ];
+  const DISC_PATCH_URLS = [
+    '/rom/disc-patch-v2.json',
+    'rom/disc-patch-v2.json',
+    '/public/rom/disc-patch-v2.json',
+    'public/rom/disc-patch-v2.json'
+  ];
+  const FIRST_FRAME_TIMEOUT_MS = 120000;
 
   const statusEl = document.getElementById('loader-status');
   const barEl = document.getElementById('progress-bar');
   const overlayEl = document.getElementById('loader-overlay');
+
+  const bootDiagnostics = {
+    version: BOOT_VERSION,
+    startedAt: Date.now(),
+    gameStarted: false,
+    stages: {},
+    errors: []
+  };
+  window.DW1_BOOT_DIAGNOSTICS = bootDiagnostics;
+
+  const recordError = (source, error) => {
+    const message = error && error.message ? error.message : String(error);
+    bootDiagnostics.errors.push({ source, message, at: Date.now() });
+    console.error('[DW1] ' + source + ': ' + message);
+  };
+
+  const setStage = (name, status, detail = '') => {
+    const previous = bootDiagnostics.stages[name];
+    if (previous && previous.status === 'ok' && status !== 'ok') return;
+    const entry = {
+      status,
+      detail,
+      at: Date.now(),
+      ms: Date.now() - bootDiagnostics.startedAt
+    };
+    bootDiagnostics.stages[name] = entry;
+    if (status === 'error') {
+      bootDiagnostics.errors.push({ source: name, message: detail, at: entry.at });
+      showError(`${name}: ${detail}`);
+    } else if (status === 'ok' && !bootDiagnostics.gameStarted && statusEl) {
+      statusEl.style.color = '';
+      statusEl.textContent = `Boot: ${name}${detail ? ' — ' + detail : ''}`;
+    }
+    console.log(`[DW1] ${name}: ${status}${detail ? ' — ' + detail : ''}`);
+  };
+
+  const stageTimeout = (name, ms, message) => {
+    const timer = setTimeout(() => {
+      const stage = bootDiagnostics.stages[name];
+      if (!stage || (stage.status !== 'ok' && stage.status !== 'unsupported')) {
+        setStage(name, 'error', message);
+      }
+    }, ms);
+    if (timer && typeof timer.unref === 'function') timer.unref();
+  };
 
   const showError = (message) => {
     if (overlayEl) overlayEl.style.display = 'flex';
@@ -39,8 +141,19 @@
       statusEl.style.color = '#ef4444';
       statusEl.textContent = message;
     }
-    console.error('[DW1] ' + message);
+    recordError('showError', message);
   };
+
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('error', (event) => {
+      recordError('window.error', event.message || (event.error && event.error.message) || 'Unknown script error');
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      recordError('unhandledrejection', event.reason && event.reason.message ? event.reason.message : event.reason);
+    });
+  }
+
+  setStage('bootScript', 'ok', `v${BOOT_VERSION}`);
 
   const withTrailingSlash = (value) => (value.endsWith('/') ? value : value + '/');
   const toAbsoluteBase = (value) => withTrailingSlash(new URL(value, location.href).href);
@@ -105,6 +218,281 @@
   const sha256 = async (blob) => {
     const hash = await globalThis.crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
     return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const hexToBytes = (hex) => {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return bytes;
+  };
+
+  const fetchFirstSuccessful = async (urls, label) => {
+    const failures = [];
+    for (const relative of urls) {
+      const url = new URL(relative, location.href).href;
+      try {
+        const response = await fetch(url, { cache: 'no-cache' });
+        if (response.ok) return { url, response };
+        failures.push(`${url} (HTTP ${response.status})`);
+      } catch (err) {
+        failures.push(`${url}: ${err.message || err}`);
+      }
+    }
+    throw new Error(`${label} unavailable — ${failures.join('; ')}`);
+  };
+
+  const loadOpenBios = async () => {
+    const { url, response } = await fetchFirstSuccessful(BIOS_URLS, 'OpenBIOS firmware');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length !== 512 * 1024) {
+      throw new Error(`OpenBIOS must be 512 KiB, got ${bytes.length} bytes from ${url}`);
+    }
+    if (canDigest) {
+      const digest = await sha256(new Blob([bytes]));
+      if (digest !== OPENBIOS_SHA256) {
+        throw new Error(`OpenBIOS checksum mismatch from ${url}: ${digest}`);
+      }
+    }
+    return new File([bytes], 'openbios.bin', { type: 'application/octet-stream' });
+  };
+
+  const loadDiscPatch = async () => {
+    const { url, response } = await fetchFirstSuccessful(DISC_PATCH_URLS, 'Disc repair patch');
+    const patch = await response.json();
+    if (!patch || patch.version !== 2 || !Array.isArray(patch.ranges)) {
+      throw new Error(`Invalid disc patch from ${url}`);
+    }
+    if (patch.sourceSize !== patch.targetSize || !Number.isFinite(patch.sourceSize)) {
+      throw new Error(`Disc patch has invalid sizes in ${url}`);
+    }
+    let previousEnd = 0;
+    for (const range of patch.ranges) {
+      if (!Number.isInteger(range.offset) || !Number.isInteger(range.length) || range.length <= 0) {
+        throw new Error(`Disc patch has an invalid range in ${url}`);
+      }
+      if (range.offset < previousEnd || range.offset < 0 || range.offset + range.length > patch.sourceSize) {
+        throw new Error(`Disc patch ranges are not ordered and in-bounds in ${url}`);
+      }
+      if (range.before.length !== range.length * 2 || range.after.length !== range.length * 2) {
+        throw new Error(`Disc patch has a truncated range in ${url}`);
+      }
+      previousEnd = range.offset + range.length;
+    }
+    return patch;
+  };
+
+  const applyDiscPatch = (ejs) => {
+    setStage('discPatch', 'pending', 'Repairing stale decompressed disc in emulator FS');
+    const patch = window.DW1_DISC_PATCH;
+    if (!patch) throw new Error('Disc repair data was not loaded before the emulator mounted the disc');
+    const FS = ejs && ejs.gameManager && ejs.gameManager.FS;
+    if (!FS || typeof FS.stat !== 'function') {
+      throw new Error('EmulatorJS filesystem is not ready for the disc repair');
+    }
+    const candidates = ['/Digimon World (Europe).bin', 'Digimon World (Europe).bin'];
+    let discPath = null;
+    for (const candidate of candidates) {
+      try {
+        const stat = FS.stat(candidate);
+        if (stat && Number(stat.size) === patch.sourceSize) {
+          discPath = candidate;
+          break;
+        }
+      } catch (err) {}
+    }
+    if (!discPath) {
+      throw new Error(`Decompressed disc not found at expected size ${patch.sourceSize}; clear cached site data and retry`);
+    }
+
+    const streamed = typeof FS.open === 'function' &&
+      typeof FS.read === 'function' &&
+      typeof FS.write === 'function' &&
+      typeof FS.close === 'function';
+    if (!streamed && (typeof FS.readFile !== 'function' || typeof FS.writeFile !== 'function')) {
+      throw new Error('EmulatorJS FS has no compatible read/write API for the disc repair');
+    }
+
+    // Patch only the changed ranges in place. Reading/writing the whole 387 MB
+    // image through readFile()/writeFile() doubles MEMFS memory and can kill the tab.
+    const readAt = (stream, position, length) => {
+      const buffer = new Uint8Array(length);
+      let done = 0;
+      while (done < length) {
+        const count = FS.read(stream, buffer, done, length - done, position + done);
+        if (!Number.isFinite(count) || count <= 0) {
+          throw new Error(`EmulatorJS FS stopped reading at byte ${position + done}`);
+        }
+        done += count;
+      }
+      return buffer;
+    };
+    const writeAt = (stream, position, bytes) => {
+      let done = 0;
+      while (done < bytes.length) {
+        const count = FS.write(stream, bytes, done, bytes.length - done, position + done);
+        if (!Number.isFinite(count) || count <= 0) {
+          throw new Error(`EmulatorJS FS stopped writing at byte ${position + done}`);
+        }
+        done += count;
+      }
+    };
+    const patchRange = (stream, range) => {
+      const before = hexToBytes(range.before);
+      const after = hexToBytes(range.after);
+      const current = readAt(stream, range.offset, range.length);
+      for (let i = 0; i < before.length; i++) {
+        if (current[i] !== before[i]) {
+          throw new Error(`Disc revision mismatch at byte 0x${(range.offset + i).toString(16)}; clear cached site data and retry`);
+        }
+      }
+      writeAt(stream, range.offset, after);
+      const verified = readAt(stream, range.offset, range.length);
+      for (let i = 0; i < after.length; i++) {
+        if (verified[i] !== after[i]) {
+          throw new Error(`Disc patch did not persist at byte 0x${(range.offset + i).toString(16)}; clear cached site data and retry`);
+        }
+      }
+    };
+
+    let patchedBytes = 0;
+    if (streamed) {
+      let stream;
+      try {
+        stream = FS.open(discPath, 'r+');
+      } catch (err) {
+        throw new Error(`Could not open ${discPath} for in-place patching: ${err.message || err}`);
+      }
+      try {
+        for (const range of patch.ranges) {
+          patchRange(stream, range);
+          patchedBytes += range.length;
+        }
+      } finally {
+        FS.close(stream);
+      }
+    } else {
+      // Compatibility fallback for older EmulatorJS builds without stream APIs.
+      const data = new Uint8Array(FS.readFile(discPath));
+      if (data.length !== patch.sourceSize) {
+        throw new Error(`Unexpected disc size ${data.length}; expected ${patch.sourceSize}`);
+      }
+      for (const range of patch.ranges) {
+        const before = hexToBytes(range.before);
+        const after = hexToBytes(range.after);
+        for (let i = 0; i < before.length; i++) {
+          if (data[range.offset + i] !== before[i]) {
+            throw new Error(`Disc revision mismatch at byte 0x${(range.offset + i).toString(16)}; clear cached site data and retry`);
+          }
+        }
+        data.set(after, range.offset);
+        patchedBytes += range.length;
+      }
+      FS.writeFile(discPath, data);
+    }
+    return { ranges: patch.ranges.length, bytes: patchedBytes, path: discPath };
+  };
+
+  const wrapDownloadRom = (ejs) => {
+    if (!ejs || typeof ejs.downloadRom !== 'function' || ejs.__dw1DiscPatchWrapped) return;
+    ejs.__dw1DiscPatchWrapped = true;
+    const original = ejs.downloadRom.bind(ejs);
+    ejs.downloadRom = async () => {
+      setStage('discMount', 'pending', 'Decompressing disc ZIP into EmulatorJS FS');
+      try {
+        await original();
+      } catch (err) {
+        setStage('discMount', 'error', err.message || String(err));
+        throw err;
+      }
+      setStage('discMount', 'ok', 'Disc .bin and .cue mounted');
+      try {
+        const result = applyDiscPatch(ejs);
+        setStage('discPatch', 'ok', `${result.ranges} ranges / ${result.bytes} bytes repaired`);
+      } catch (err) {
+        setStage('discPatch', 'error', err.message || String(err));
+        throw err;
+      }
+    };
+  };
+
+  const waitForFirstFrame = async (ejs) => {
+    if (
+      !ejs || !ejs.gameManager || typeof ejs.gameManager.screenshot !== 'function' ||
+      typeof globalThis.createImageBitmap !== 'function'
+    ) {
+      setStage('firstFrame', 'unsupported', 'Canvas pixel probe is unavailable in this environment');
+      return;
+    }
+    setStage('firstFrame', 'pending', 'Waiting for a non-black PlayStation frame');
+    const deadline = Date.now() + FIRST_FRAME_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      try {
+        const png = await ejs.gameManager.screenshot();
+        const bitmap = await globalThis.createImageBitmap(new Blob([png], { type: 'image/png' }));
+        const canvas = document.createElement('canvas');
+        canvas.width = 32;
+        canvas.height = 18;
+        const ctx = canvas.getContext && canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          let lit = 0;
+          for (let i = 0; i < pixels.length; i += 4) {
+            if (pixels[i] + pixels[i + 1] + pixels[i + 2] > 24) lit++;
+          }
+          if (typeof bitmap.close === 'function') bitmap.close();
+          if (lit > 16) {
+            setStage('firstFrame', 'ok', `${lit}/${canvas.width * canvas.height} lit sample pixels`);
+            return;
+          }
+        } else if (typeof bitmap.close === 'function') {
+          bitmap.close();
+        }
+      } catch (err) {
+        // Screenshot may not be available until the first RetroArch frame.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    setStage('firstFrame', 'error', `No non-black frame within ${FIRST_FRAME_TIMEOUT_MS / 1000}s`);
+  };
+
+  const installEmulatorHooks = () => {
+    let emulatorRef = null;
+    Object.defineProperty(window, 'EJS_emulator', {
+      configurable: true,
+      enumerable: true,
+      get() { return emulatorRef; },
+      set(value) {
+        emulatorRef = value;
+        wrapDownloadRom(value);
+      }
+    });
+
+    window.EJS_ready = () => {
+      setStage('ejsReady', 'ok', 'EmulatorJS instance created');
+      wrapDownloadRom(window.EJS_emulator);
+    };
+
+    const originalOnGameStart = window.EJS_onGameStart;
+    window.EJS_onGameStart = () => {
+      originalOnGameStart();
+      bootDiagnostics.gameStarted = true;
+      setStage('gameStart', 'ok', 'EJS_onGameStart fired');
+      setStage('controlsAudio', 'ok', 'EmulatorJS default controls, settings and audio left enabled; headless playback not verified');
+      console.log('[DW1] Boot diagnostics', window.DW1_BOOT_DIAGNOSTICS);
+      waitForFirstFrame(window.EJS_emulator);
+    };
+
+    window.EJS_onLoadState = () => setStage('loadState', 'ok', 'EmulatorJS loadState hook fired');
+    window.EJS_onSaveState = () => setStage('saveState', 'ok', 'EmulatorJS saveState hook fired');
+    window.EJS_onLoadSave = () => setStage('loadSave', 'ok', 'EmulatorJS loadSave hook fired');
+    const originalOnSaveSave = window.EJS_onSaveSave;
+    window.EJS_onSaveSave = () => {
+      setStage('saveSave', 'ok', 'EmulatorJS saveSave hook fired');
+      if (typeof originalOnSaveSave === 'function') originalOnSaveSave();
+    };
   };
 
   // ==========================================
@@ -706,6 +1094,8 @@
   // Emulator Configuration & Settings Cleanup
   // ==========================================
 
+  // Remove stale core selections from earlier deployments. The critical
+  // PCSX-ReARMed/OpenBIOS options are re-primed immediately afterwards.
   function clearIncompatibleEmulatorSettings() {
     const staleKeys = [
       'retroarch_core',
@@ -740,6 +1130,52 @@
     }
   }
 
+  function normalizeControlSettings(data) {
+    const controls = data.controlSettings && typeof data.controlSettings === 'object' && !Array.isArray(data.controlSettings)
+      ? data.controlSettings
+      : {};
+    for (let player = 0; player < 4; player++) {
+      if (!controls[player] || typeof controls[player] !== 'object' || Array.isArray(controls[player])) {
+        controls[player] = {};
+      }
+    }
+    for (const [key, fallback] of Object.entries(DEFAULT_PSX_CONTROLS[0])) {
+      const current = controls[0][key];
+      if (!current || typeof current !== 'object' || Array.isArray(current)) {
+        controls[0][key] = { ...fallback };
+      } else {
+        if (current.value === undefined && fallback.value !== undefined) current.value = fallback.value;
+        if (current.value2 === undefined && fallback.value2 !== undefined) current.value2 = fallback.value2;
+      }
+    }
+    data.controlSettings = controls;
+  }
+
+  function primeCoreSettings() {
+    try {
+      if (!window.localStorage) return;
+      let data = {};
+      try {
+        data = JSON.parse(window.localStorage.getItem(CORE_SETTINGS_KEY)) || {};
+      } catch (err) {
+        data = {};
+      }
+      if (!data || typeof data !== 'object') data = {};
+      if (!data.settings || typeof data.settings !== 'object') data.settings = {};
+      if (!Array.isArray(data.cheats)) data.cheats = [];
+      normalizeControlSettings(data);
+      // These must exist in localStorage before the core reads its .opt file;
+      // EmulatorJS 4.2.3 otherwise ignores EJS_defaultOptions until after boot.
+      data.settings.retroarch_core = 'pcsx_rearmed';
+      data.settings.pcsx_rearmed_bios = 'auto';
+      data.settings.pcsx_rearmed_show_bios_bootlogo = 'disabled';
+      window.localStorage.setItem(CORE_SETTINGS_KEY, JSON.stringify(data));
+      setStage('coreSettings', 'ok', 'Pinned PCSX-ReARMed + Auto BIOS before core load');
+    } catch (err) {
+      setStage('coreSettings', 'error', err.message || String(err));
+    }
+  }
+
   function configureEmulator(romFile, activeSession) {
     clearIncompatibleEmulatorSettings();
 
@@ -758,12 +1194,14 @@
     window.EJS_hideSettings = ['retroarch_core'];
     window.EJS_defaultOptions = {
       'retroarch_core': 'pcsx_rearmed',
-      'pcsx_rearmed_bios': 'HLE',
+      'pcsx_rearmed_bios': 'auto',
       'pcsx_rearmed_show_bios_bootlogo': 'disabled',
       'pcsx_rearmed_dithering': 'disabled',
       'pcsx_rearmed_neon_enhancement_enable': 'enabled',
       'pcsx_rearmed_neon_enhancement_no_main': 'disabled'
     };
+    primeCoreSettings();
+    setStage('emulatorConfig', 'ok', 'OpenBIOS + PCSX-ReARMed auto BIOS configured');
 
     // If an active session exists, hook automatic resume via loadState
     if (activeSession && activeSession.state) {
@@ -823,39 +1261,70 @@
   async function bootGame() {
     try {
       // Step 1: Check for existing saved session to resume
+      setStage('session', 'pending', 'Checking saved session');
       let activeSession = null;
       try {
         activeSession = await getActiveSession();
+        setStage('session', activeSession ? 'ok' : 'ok', activeSession ? 'Resumable session found' : 'Starting a fresh session');
       } catch (err) {
+        setStage('session', 'ok', 'Session check failed; starting fresh');
         console.warn('[DW1] Session check failed, starting fresh', err);
       }
 
-      if (activeSession) {
-        if (statusEl) statusEl.textContent = 'Found saved session. Assembling game disc...';
-      }
-
       // Step 2: Resolve manifest and build ROM from cache / network
+      setStage('manifest', 'pending', 'Resolving disc manifest');
       const { base, manifest } = await resolveManifest();
+      setStage('manifest', 'ok', `${manifest.chunks.length} chunks from ${base}`);
+      setStage('chunks', 'pending', 'Assembling disc from cache / network');
       const romFile = await buildRomFile(base, manifest);
+      setStage('chunks', 'ok', `${(romFile.size / 1048576).toFixed(1)} MB assembled`);
+      setStage('disc', 'ok', romFile.name);
 
       // Step 3: Setup UI controls, multi-tab coordination & emulator config
       setupSaveControls();
       setupMultiTabSync();
       configureEmulator(romFile, activeSession);
 
-      // Step 4: Hide loader overlay and mount EmulatorJS
+      // Step 4: Load free firmware and the small runtime disc repair patch
+      setStage('bios', 'pending', 'Loading redistributable OpenBIOS');
+      const biosFile = await loadOpenBios();
+      window.EJS_biosUrl = biosFile;
+      setStage('bios', 'ok', `${biosFile.name} (${biosFile.size} bytes)`);
+      setStage('patchData', 'pending', 'Loading disc repair patch');
+      const discPatch = await loadDiscPatch();
+      window.DW1_DISC_PATCH = discPatch;
+      setStage('patchData', 'ok', `${discPatch.ranges.length} ranges / ${discPatch.targetSize} byte disc`);
+      installEmulatorHooks();
+
+      // Step 5: Hide loader overlay and mount EmulatorJS
       if (overlayEl) overlayEl.style.display = 'none';
+      setStage('loader', 'pending', 'Loading EmulatorJS 4.2.3 from CDN');
       const loader = document.createElement('script');
       loader.src = EJS_DATA_URL + 'loader.js';
-      loader.onerror = () => showError('Could not load EmulatorJS from the CDN.');
+      loader.onload = () => setStage('loader', 'ok', 'CDN loader.js executed');
+      loader.onerror = () => setStage('loader', 'error', 'Could not load EmulatorJS from the CDN');
       document.body.appendChild(loader);
 
-      // Step 5: Register Service Worker for offline shell and CDN caching
+      // Stage-specific deadlines turn another unexplained black screen into a
+      // precise error in the overlay and in window.DW1_BOOT_DIAGNOSTICS.
+      stageTimeout('loader', 30000, 'EmulatorJS loader.js did not load within 30s');
+      stageTimeout('ejsReady', 60000, 'EmulatorJS did not become ready within 60s');
+      stageTimeout('discMount', 180000, 'Disc was not decompressed into the emulator filesystem within 180s');
+      stageTimeout('discPatch', 200000, 'Disc repair patch was not applied within 200s');
+      stageTimeout('gameStart', 240000, 'EJS_onGameStart did not fire within 240s');
+      stageTimeout('firstFrame', 300000, 'No PlayStation frame appeared within 300s');
+
+      // Step 6: Register Service Worker for offline shell and CDN caching
       if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+        navigator.serviceWorker.register('/sw.js')
+          .then(() => setStage('serviceWorker', 'ok', 'Registered'))
+          .catch((err) => setStage('serviceWorker', 'warning', err.message || String(err)));
+      } else {
+        setStage('serviceWorker', 'unsupported', 'Service workers unavailable on this origin');
       }
     } catch (err) {
-      showError('Error loading disc: ' + (err.message || err));
+      const message = err.message || String(err);
+      setStage('boot', 'error', message);
     }
   }
 

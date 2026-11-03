@@ -121,7 +121,9 @@ const MIME_TYPES = {
   '.webmanifest': 'application/manifest+json',
   '.zip': 'application/zip',
   '.bin': 'application/octet-stream',
-  '.cue': 'text/plain; charset=utf-8'
+  '.cue': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.license': 'text/plain; charset=utf-8'
 };
 
 const server = http.createServer((req, res) => {

@@ -9,8 +9,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BOOT_FILE = path.join(ROOT, 'public', 'emulator-boot.js');
 const SW_FILE = path.join(ROOT, 'public', 'sw.js');
+const SERVER_FILE = path.join(ROOT, 'server.mjs');
+const BIOS_FILE = path.join(ROOT, 'public', 'bios', 'openbios.bin');
+const DISC_PATCH_FILE = path.join(ROOT, 'public', 'rom', 'disc-patch-v2.json');
 const VERCEL_JSON = path.join(ROOT, 'vercel.json');
 const VERCEL_IGNORE = path.join(ROOT, '.vercelignore');
+const OPENBIOS_BYTES = fs.readFileSync(BIOS_FILE);
+const DISC_PATCH_JSON = fs.readFileSync(DISC_PATCH_FILE, 'utf8');
 const FALLBACK_ROM_BASE =
   'https://raw.githubusercontent.com/LIN4CRE/DigimonWorld1Web/main/public/rom/';
 
@@ -248,6 +253,12 @@ async function runBoot(options = {}) {
     const href = String(url);
     fetchCalls.push(href);
     const fromExpectedBase = !manifestBase || href.startsWith(manifestBase);
+    if (href.includes('/bios/openbios.bin')) {
+      return makeResponse(options.openBiosBytes || OPENBIOS_BYTES);
+    }
+    if (href.includes('/disc-patch-v2.json')) {
+      return makeResponse(options.patchJson === undefined ? DISC_PATCH_JSON : options.patchJson);
+    }
     if (href.endsWith('/manifest.json') && fromExpectedBase) {
       return makeResponse('', { json: manifest });
     }
@@ -284,6 +295,8 @@ async function runBoot(options = {}) {
     },
     clearInterval,
     confirm: () => true,
+    addEventListener() {},
+    removeEventListener() {},
     console: {
       log() {},
       warn() {},
@@ -295,20 +308,28 @@ async function runBoot(options = {}) {
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(BOOT_FILE, 'utf8'), context, { filename: 'emulator-boot.js' });
-  await waitFor(() => context.EJS_gameUrl || context.document.getElementById('loader-status').textContent.startsWith('Error'));
+  await waitFor(() =>
+    (context.EJS_biosUrl instanceof File && context.DW1_DISC_PATCH) ||
+    context.document.getElementById('loader-status').textContent.startsWith('Error') ||
+    (context.DW1_BOOT_DIAGNOSTICS && context.DW1_BOOT_DIAGNOSTICS.stages.boot && context.DW1_BOOT_DIAGNOSTICS.stages.boot.status === 'error')
+  );
 
   return { context, document, localStorage, fetchCalls };
 }
 
-test('shared boot script is valid and forces a BIOS-free PCSX-ReARMed configuration', async () => {
+test('shared boot script is valid and forces the OpenBIOS-backed PCSX-ReARMed configuration', async () => {
   const staleKey = 'ejs-1-psx-Digimon World (Europe)-settings';
   const staleSettings = {
     settings: {
       retroarch_core: 'mednafen_psx_hw',
-      pcsx_rearmed_bios: 'auto',
+      pcsx_rearmed_bios: 'HLE',
+      beetle_psx_hw_override_bios: 'enabled',
       volume: 'high'
     },
-    controlSettings: { favorite: true },
+    controlSettings: {
+      0: { 0: { value: 'custom' } },
+      favorite: true
+    },
     cheats: []
   };
 
@@ -326,27 +347,52 @@ test('shared boot script is valid and forces a BIOS-free PCSX-ReARMed configurat
 
   assert.equal(context.DW1_BOOT_STARTED, true);
   assert.equal(context.EJS_core, 'pcsx_rearmed');
-  assert.equal(context.EJS_biosUrl, '');
+  assert.equal(context.EJS_biosUrl.name, 'openbios.bin');
+  assert.equal(context.EJS_biosUrl.size, 512 * 1024);
   assert.equal(context.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.2.3/data/');
   assert.equal(context.EJS_gameName, 'Digimon World (Europe)');
   assert.equal(context.EJS_gameUrl.name, 'Digimon World (Europe).zip');
   assert.deepEqual(Array.from(context.EJS_hideSettings), ['retroarch_core']);
   assert.equal(context.EJS_defaultOptions.retroarch_core, 'pcsx_rearmed');
-  assert.equal(context.EJS_defaultOptions.pcsx_rearmed_bios, 'HLE');
+  assert.equal(context.EJS_defaultOptions.pcsx_rearmed_bios, 'auto');
+  assert.equal(typeof context.EJS_ready, 'function');
   assert.equal(typeof context.EJS_onGameStart, 'function');
+  assert.equal(typeof context.EJS_onLoadState, 'function');
+  assert.equal(typeof context.EJS_onSaveState, 'function');
+  assert.equal(typeof context.EJS_onLoadSave, 'function');
+  assert.equal(typeof context.EJS_onSaveSave, 'function');
+  assert.ok(context.DW1_DISC_PATCH);
+  assert.equal(context.DW1_DISC_PATCH.version, 2);
+  assert.ok(Array.isArray(context.DW1_DISC_PATCH.ranges));
+  assert.ok(context.DW1_BOOT_DIAGNOSTICS);
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.version, '2.2.2');
+  for (const stage of ['bootScript', 'manifest', 'chunks', 'disc', 'bios', 'patchData', 'coreSettings', 'emulatorConfig']) {
+    assert.equal(context.DW1_BOOT_DIAGNOSTICS.stages[stage].status, 'ok', `${stage} must succeed`);
+  }
 
   const loader = document.body.children.at(-1);
   assert.equal(loader.src, 'https://cdn.emulatorjs.org/4.2.3/data/loader.js');
 
   assert.ok(fetchCalls.some((url) => url.endsWith('/rom/manifest.json')));
   assert.ok(fetchCalls.some((url) => url.endsWith('/rom/part0.bin')));
+  assert.ok(fetchCalls.some((url) => url.includes('/bios/openbios.bin')));
+  assert.ok(fetchCalls.some((url) => url.includes('/disc-patch-v2.json')));
 
-  const cleaned = JSON.parse(localStorage.getItem(staleKey));
-  assert.equal(cleaned.settings.volume, 'high');
-  assert.equal('retroarch_core' in cleaned.settings, false);
-  assert.equal('pcsx_rearmed_bios' in cleaned.settings, false);
-  assert.deepEqual(cleaned.controlSettings, { favorite: true });
-  assert.deepEqual(cleaned.cheats, []);
+  const primed = JSON.parse(localStorage.getItem(staleKey));
+  assert.equal(primed.settings.volume, 'high');
+  assert.equal(primed.settings.retroarch_core, 'pcsx_rearmed');
+  assert.equal(primed.settings.pcsx_rearmed_bios, 'auto');
+  assert.equal(primed.settings.pcsx_rearmed_show_bios_bootlogo, 'disabled');
+  assert.equal('beetle_psx_hw_override_bios' in primed.settings, false);
+  assert.equal(primed.controlSettings.favorite, true);
+  assert.equal(primed.controlSettings[0][0].value, 'custom', 'User-customised controls must be preserved');
+  assert.equal(primed.controlSettings[0][3].value, 'enter', 'Default Start binding must be seeded');
+  assert.equal(primed.controlSettings[0][3].value2, 'START');
+  assert.equal(primed.controlSettings[0][8].value, 'z', 'Default Square binding must be seeded');
+  assert.ok(primed.controlSettings[1] && typeof primed.controlSettings[1] === 'object', 'Player 2 controls must exist');
+  assert.ok(primed.controlSettings[2] && typeof primed.controlSettings[2] === 'object', 'Player 3 controls must exist');
+  assert.ok(primed.controlSettings[3] && typeof primed.controlSettings[3] === 'object', 'Player 4 controls must exist');
+  assert.deepEqual(primed.cheats, []);
   assert.equal(localStorage.getItem('ejs-settings'), JSON.stringify({ volume: 0.5, muted: false }));
 });
 
@@ -362,7 +408,7 @@ test('all HTML entry points load the shared boot script and contain no stale emu
   const htmlFiles = ['index.html', 'public/index.html', 'public/emulator.html'];
   for (const relative of htmlFiles) {
     const html = fs.readFileSync(path.join(ROOT, relative), 'utf8');
-    assert.match(html, /emulator-boot\.js/, `${relative} must load the shared boot script`);
+    assert.match(html, /emulator-boot\.js\?v=2\.2\.2/, `${relative} must load the versioned shared boot script`);
     assert.doesNotMatch(html, /EJS_core\s*=\s*['"]psx['"]/, `${relative} must not select the generic PSX core`);
     assert.doesNotMatch(html, /cdn\.emulatorjs\.org\/stable/, `${relative} must not use the unpinned CDN path`);
     assert.doesNotMatch(html, /scph5502\.bin/, `${relative} must not request a proprietary BIOS`);
@@ -378,11 +424,16 @@ test('all HTML entry points load the shared boot script and contain no stale emu
   );
 });
 
-test('boot script parses and the ROM manifest matches the committed chunk sizes', () => {
+test('boot script parses, uses OpenBIOS/diagnostics, and the ROM manifest matches committed chunks', () => {
   const bootSource = fs.readFileSync(BOOT_FILE, 'utf8');
   assert.doesNotThrow(() => new vm.Script(bootSource, { filename: 'emulator-boot.js' }));
-  assert.match(bootSource, /pcsx_rearmed_bios['"]\s*:\s*['"]HLE['"]/);
+  assert.match(bootSource, /pcsx_rearmed_bios['"]\s*:\s*['"]auto['"]/);
   assert.match(bootSource, /EJS_VERSION\s*=\s*['"]4\.2\.3['"]/);
+  assert.match(bootSource, /OPENBIOS_SHA256\s*=\s*['"]fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57['"]/);
+  assert.match(bootSource, /disc-patch-v2\.json/);
+  assert.match(bootSource, /DW1_BOOT_DIAGNOSTICS/);
+  assert.match(bootSource, /EJS_ready/);
+  assert.match(bootSource, /firstFrame/);
 
   const manifest = JSON.parse(
     fs.readFileSync(path.join(ROOT, 'public/rom/manifest.json'), 'utf8')
@@ -393,6 +444,28 @@ test('boot script parses and the ROM manifest matches the committed chunk sizes'
     assert.equal(fs.statSync(path.join(ROOT, 'public/rom', chunk.name)).size, chunk.size);
   }
   assert.equal(fs.existsSync(path.join(ROOT, 'public/scph5502.bin')), false);
+
+  const bios = fs.readFileSync(BIOS_FILE);
+  assert.equal(bios.length, 512 * 1024);
+  assert.equal(
+    createHash('sha256').update(bios).digest('hex'),
+    'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57'
+  );
+  assert.equal(fs.existsSync(path.join(ROOT, 'public/bios/OpenBIOS.LICENSE')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'public/bios/README.md')), true);
+
+  const patch = JSON.parse(fs.readFileSync(DISC_PATCH_FILE, 'utf8'));
+  assert.equal(patch.version, 2);
+  assert.equal(patch.sourceSize, patch.targetSize);
+  assert.ok(patch.sourceSha256 && patch.targetSha256);
+  assert.ok(patch.ranges.length > 0);
+  let previousEnd = 0;
+  for (const range of patch.ranges) {
+    assert.ok(range.offset >= previousEnd);
+    assert.equal(range.before.length, range.length * 2);
+    assert.equal(range.after.length, range.length * 2);
+    previousEnd = range.offset + range.length;
+  }
 });
 
 test('local server binds to all interfaces for previews', () => {
@@ -482,6 +555,10 @@ test('Service Worker file exists, parses without syntax errors, and registers in
   assert.match(swCode, /addEventListener\(['"]activate['"]/);
   assert.match(swCode, /addEventListener\(['"]fetch['"]/);
   assert.match(swCode, /pcsx_rearmed-wasm\.data/);
+  assert.match(swCode, /dw1-v2\.2\.2/);
+  assert.match(swCode, /\/bios\/openbios\.bin/);
+  assert.match(swCode, /\/rom\/disc-patch-v2\.json/);
+  assert.match(swCode, /networkFirst/);
 });
 
 test('Vercel configuration includes security headers and anchors root ignore paths', () => {
@@ -489,6 +566,9 @@ test('Vercel configuration includes security headers and anchors root ignore pat
   const vercelConfig = JSON.parse(fs.readFileSync(VERCEL_JSON, 'utf8'));
   assert.ok(Array.isArray(vercelConfig.headers), 'vercel.json headers must be an array');
   assert.ok(vercelConfig.headers.some((h) => h.headers.some((pair) => pair.key === 'X-Content-Type-Options')));
+  assert.ok(vercelConfig.headers.some((h) => h.source === '/emulator-boot.js' && h.headers.some((p) => p.value.includes('must-revalidate'))));
+  assert.ok(vercelConfig.headers.some((h) => h.source === '/bios/openbios.bin' && h.headers.some((p) => p.value.includes('immutable'))));
+  assert.ok(vercelConfig.headers.some((h) => h.source === '/rom/disc-patch-v2.json' && h.headers.some((p) => p.value.includes('immutable'))));
 
   const vercelIgnore = fs.readFileSync(VERCEL_IGNORE, 'utf8');
   assert.match(vercelIgnore, /^\/rom/m, '.vercelignore must anchor root /rom so public/ is preserved');
@@ -543,3 +623,122 @@ test('autosave safeguards protect against incomplete saves and preserve valid se
   assert.equal(sessionReq.result.state, existingGoodState, 'Original good save must remain untouched');
 });
 
+
+test('runtime disc patch is applied after downloadRom and every boot stage is reported', async () => {
+  const sourceDisc = new Uint8Array([0, 0, 0, 0, 9, 9, 9, 9]);
+  const patch = {
+    version: 2,
+    description: 'test patch',
+    sourceSize: sourceDisc.length,
+    targetSize: sourceDisc.length,
+    sourceSha256: 'source',
+    targetSha256: 'target',
+    ranges: [{ offset: 0, length: 4, before: '00000000', after: '01020304' }]
+  };
+
+  const { context, document } = await runBoot({ patchJson: JSON.stringify(patch) });
+  const contents = new Uint8Array(sourceDisc);
+  let openMode = null;
+  let closed = false;
+  let writeCalls = 0;
+  const mockEmulator = {
+    async downloadRom() {},
+    gameManager: {
+      FS: {
+        stat(path) {
+          if (!path.includes('Digimon World (Europe).bin')) throw new Error('missing');
+          return { size: contents.length };
+        },
+        open(path, mode) {
+          openMode = mode;
+          return { path, contents };
+        },
+        read(stream, buffer, offset, length, position) {
+          buffer.set(stream.contents.subarray(position, position + length), offset);
+          return length;
+        },
+        write(stream, buffer, offset, length, position) {
+          stream.contents.set(buffer.subarray(offset, offset + length), position);
+          writeCalls++;
+          return length;
+        },
+        close() {
+          closed = true;
+        }
+      }
+    }
+  };
+
+  context.EJS_emulator = mockEmulator;
+  assert.equal(context.EJS_emulator, mockEmulator, 'EJS_emulator accessor must preserve the instance');
+  assert.equal(typeof context.EJS_emulator.downloadRom, 'function');
+  context.EJS_ready();
+  await context.EJS_emulator.downloadRom();
+
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.stages.ejsReady.status, 'ok');
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.stages.discMount.status, 'ok');
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.stages.discPatch.status, 'ok');
+  assert.match(context.DW1_BOOT_DIAGNOSTICS.stages.discPatch.detail, /1 ranges \/ 4 bytes/);
+  assert.equal(openMode, 'r+', 'Disc must be opened for in-place streaming repair');
+  assert.equal(writeCalls, 1, 'Only the changed range should be written');
+  assert.equal(closed, true, 'Disc stream must be closed');
+  assert.deepEqual(Array.from(contents), [1, 2, 3, 4, 9, 9, 9, 9]);
+  assert.doesNotMatch(document.getElementById('loader-status').textContent, /^Error/);
+});
+
+test('EJS_onGameStart records game start, controls/audio, and first-frame diagnostics', async () => {
+  const { context } = await runBoot();
+  context.EJS_onGameStart();
+  const stages = context.DW1_BOOT_DIAGNOSTICS.stages;
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.gameStarted, true);
+  assert.equal(stages.gameStart.status, 'ok');
+  assert.equal(stages.controlsAudio.status, 'ok');
+  assert.equal(stages.firstFrame.status, 'unsupported');
+});
+
+test('boot source captures global errors and installs stage timeouts', () => {
+  const bootSource = fs.readFileSync(BOOT_FILE, 'utf8');
+  assert.match(bootSource, /window\.addEventListener\(['"]error['"]/);
+  assert.match(bootSource, /window\.addEventListener\(['"]unhandledrejection['"]/);
+  assert.match(bootSource, /stageTimeout\(['"]loader['"]/);
+  assert.match(bootSource, /stageTimeout\(['"]ejsReady['"]/);
+  assert.match(bootSource, /stageTimeout\(['"]discMount['"]/);
+  assert.match(bootSource, /stageTimeout\(['"]gameStart['"]/);
+  assert.match(bootSource, /stageTimeout\(['"]firstFrame['"]/);
+  assert.match(bootSource, /DW1_BOOT_DIAGNOSTICS/);
+  assert.match(bootSource, /FS\.open\(discPath, 'r\+'\)/);
+  assert.match(bootSource, /FS\.read\(stream, buffer, done/);
+  assert.match(bootSource, /FS\.write\(stream, bytes, done/);
+  assert.match(bootSource, /DEFAULT_PSX_CONTROLS/);
+  assert.match(bootSource, /normalizeControlSettings\(data\)/);
+  assert.match(bootSource, /value: 'enter', value2: 'START'/);
+});
+
+test('service worker precache and server MIME map cover the new boot assets', () => {
+  const swCode = fs.readFileSync(SW_FILE, 'utf8');
+  const serverCode = fs.readFileSync(SERVER_FILE, 'utf8');
+  assert.match(serverCode, /'\.md': 'text\/markdown; charset=utf-8'/);
+  assert.match(serverCode, /'\.license': 'text\/plain; charset=utf-8'/);
+
+  const assets = [
+    '/bios/openbios.bin',
+    '/bios/OpenBIOS.LICENSE',
+    '/bios/README.md',
+    '/rom/disc-patch-v2.json',
+    '/rom/manifest.json',
+    '/manifest.webmanifest',
+    '/favicon.svg',
+    '/favicon.ico',
+    '/apple-touch-icon.png',
+    '/icon-192.png',
+    '/icon-512.png'
+  ];
+  for (const asset of assets) {
+    const filePath = path.join(ROOT, 'public', asset.replace(/^\/+/, ''));
+    assert.equal(fs.existsSync(filePath), true, `${asset} must exist for the service worker`);
+  }
+  for (const asset of ['/bios/openbios.bin', '/bios/OpenBIOS.LICENSE', '/rom/disc-patch-v2.json']) {
+    assert.ok(swCode.includes(asset), `${asset} must be in the service worker precache list`);
+  }
+  assert.ok(swCode.includes('/rom/manifest.json'), 'ROM manifest must be network-first');
+});
