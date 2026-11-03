@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BOOT_FILE = path.join(ROOT, 'public', 'emulator-boot.js');
 const SW_FILE = path.join(ROOT, 'public', 'sw.js');
+const README_FILE = path.join(ROOT, 'README.md');
 const SERVER_FILE = path.join(ROOT, 'server.mjs');
 const BIOS_FILE = path.join(ROOT, 'public', 'bios', 'openbios.bin');
 const DISC_PATCH_FILE = path.join(ROOT, 'public', 'rom', 'disc-patch-v2.json');
@@ -741,4 +742,13 @@ test('service worker precache and server MIME map cover the new boot assets', ()
     assert.ok(swCode.includes(asset), `${asset} must be in the service worker precache list`);
   }
   assert.ok(swCode.includes('/rom/manifest.json'), 'ROM manifest must be network-first');
+});
+
+test('README points to the live Vercel production deployment', () => {
+  const readme = fs.readFileSync(README_FILE, 'utf8');
+  assert.match(readme, /https:\/\/digimon-world-webui\.vercel\.app\//);
+  assert.doesNotMatch(readme, /https:\/\/digimon-world-1-web\.vercel\.app\//);
+  assert.match(readme, /https:\/\/lin4cre\.github\.io\/DigimonWorld1Web\//);
+  assert.match(readme, /Live deployment/);
+  assert.match(readme, /dw1-v2\.2\.2/);
 });
