@@ -3,13 +3,17 @@
  * Provides instant startup, offline shell caching, and background asset prefetching.
  */
 
-const CACHE_NAME = 'dw1-v2.1.0';
+const CACHE_NAME = 'dw1-v2.2.2';
 
 // Shell resources to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/emulator-boot.js',
+  '/emulator-boot.js?v=2.2.2',
+  '/bios/openbios.bin',
+  '/bios/OpenBIOS.LICENSE',
+  '/rom/disc-patch-v2.json',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/favicon.ico',
@@ -27,6 +31,15 @@ const CDN_PRECACHE_ASSETS = [
   'https://cdn.emulatorjs.org/4.2.3/data/cores/pcsx_rearmed-wasm.data'
 ];
 
+// Critical boot inputs: always try the network first so a redeploy cannot be
+// pinned to an old boot script, BIOS, manifest, or disc repair patch.
+const CRITICAL_PATHS = [
+  '/emulator-boot.js',
+  '/rom/manifest.json',
+  '/rom/disc-patch-v2.json',
+  '/bios/openbios.bin'
+];
+
 // Secondary background assets to prefetch when idle
 const BACKGROUND_ASSETS = [
   '/data/reverse-engineered-db.json',
@@ -39,6 +52,19 @@ const BACKGROUND_ASSETS = [
   '/maps/native_forest.png',
   '/maps/green_gym.png'
 ];
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: 'no-cache' });
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch (err) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw err;
+  }
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -102,23 +128,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ROM manifest: stale-while-revalidate so updates to chunk hashes are picked up immediately
-  if (url.pathname.endsWith('manifest.json')) {
-    event.respondWith(
-      (async () => {
-        const cache = await caches.open(CACHE_NAME);
-        try {
-          const networkRes = await fetch(event.request, { cache: 'no-cache' });
-          if (networkRes.ok) {
-            cache.put(event.request, networkRes.clone());
-            return networkRes;
-          }
-        } catch (err) {}
-        const cachedRes = await cache.match(event.request);
-        if (cachedRes) return cachedRes;
-        return fetch(event.request);
-      })()
-    );
+  // Network-first for boot-critical assets, with offline cache fallback.
+  if (CRITICAL_PATHS.includes(url.pathname)) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 

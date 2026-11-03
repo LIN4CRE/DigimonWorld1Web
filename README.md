@@ -39,6 +39,7 @@
 
 ## 🆕 Latest Changes
 
+- 🛠️ **Black-screen boot fix** — redistributable OpenBIOS with `pcsx_rearmed_bios = "auto"`, a 51 KB in-place runtime repair of the stale committed disc, seeded default controls, streamed filesystem patching, versioned service-worker cache and `window.DW1_BOOT_DIAGNOSTICS` stage/timeouts. Production headless verification reaches real 3D gameplay; see [validation](#validation-performed-for-this-fix).
 - 🧬 **Safe expanded evolution storage** — the 10,384-byte resident block is decompressed at startup to `0x801C8CD0..0x801CB560`; the heap then begins at `0x801CB560`. This replaces the old experimental writes that overlapped live interrupt state at `0x8011B990` and `0x8011C000`.
 - 🥚 **Data-driven Fresh and starter paths** — a 16-entry starter roster resides at `0x801CB550`, and Fresh evolution (including DemiMeramon) uses the expanded forward-path rows. The starter selector uses the opening script result's low four bits; live quiz coverage of every roster entry still needs emulator verification.
 - 🏋️ **All table consumers redirected** — verified references in `SLES_029.14`, `EVL_REL.BIN`, `TRN_REL.BIN`, and `TRN2_REL.BIN` now use the expanded raise, requirement, stat-gain, and path tables. Reverse paths are derived from forward edges and validated against the engine's five-predecessor/six-target limits.
@@ -145,16 +146,27 @@ Run the boot/configuration regression checks with:
 npm test
 ```
 
-### If you previously saw `Firmware is missing: scph5502.bin`
+### Why the old build showed a black screen
 
-That message comes from the Beetle/`mednafen_psx_hw` PlayStation core, which requires a region-matched, copyrighted Sony BIOS dump. This project does not distribute one. The browser build now:
+The committed disc chunks contained an older, boot-breaking patched `SLES_029.14`, and forcing `pcsx_rearmed_bios = "HLE"` hit a known Digimon World HLE failure (no first PlayStation frame). The current build fixes both at the emulator-loading level:
 
-- pins EmulatorJS `4.2.3` instead of the moving `stable` CDN path;
-- boots `pcsx_rearmed` with `pcsx_rearmed_bios = "HLE"`;
-- hides the alternate-core selector and removes stale `retroarch_core` / BIOS settings from `localStorage`;
-- keeps memory-card saves and all other user settings intact.
+- pins EmulatorJS `4.2.3` and `pcsx_rearmed` instead of the moving `stable` CDN path;
+- ships the MIT-licensed [PCSX-Redux OpenBIOS](public/bios/README.md) as `openbios.bin` and sets `pcsx_rearmed_bios = "auto"` — no proprietary Sony firmware is needed;
+- applies a small, auditable [`disc-patch-v2.json`](public/rom/disc-patch-v2.json) to the decompressed disc in the EmulatorJS filesystem, upgrading the committed chunks to the repaired 127-species ROM expansion without replacing the 229 MB chunk files;
+- primes the core options in `localStorage` before core load (EmulatorJS 4.2.3 otherwise applies `EJS_defaultOptions` too late);
+- exposes `window.DW1_BOOT_DIAGNOSTICS` with stage status for website load → manifest → chunks → BIOS → patch → CDN loader → core init → disc mount → `EJS_onGameStart` → first frame, plus stage timeouts and global error capture.
 
-A hard refresh after deploying the fix is enough; no BIOS upload is required. HLE compatibility is slightly lower than a user-supplied retail BIOS, but *Digimon World (Europe)* boots without one.
+A hard refresh after deploying picks up the versioned boot script and the new service-worker cache. No BIOS upload is required. Controls, audio and memory-card saves remain EmulatorJS defaults; headless verification cannot confirm audible sound, but nothing mutes or disables it.
+
+### Validation performed for this fix
+
+- `npm test`: **22/22 passing**, including new checks for OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, control-settings seeding, service-worker precache paths, static MIME types, and Vercel cache headers.
+- Production-mode Chromium boot against the unmodified `emulator-boot.js` (`v2.2.2`): all stages reached `ok` — `bootScript`, `session`, `manifest`, `chunks`, `disc`, `coreSettings`, `emulatorConfig`, `bios`, `patchData`, `loader`, `ejsReady`, `discMount`, `discPatch`, `gameStart`, `controlsAudio`, `firstFrame`, and `serviceWorker`.
+- `discPatch` applied **170 ranges / 8,770 bytes** in place with `FS.open('r+')`/`FS.read`/`FS.write`; the old whole-file `readFile`/`writeFile` path exhausted browser memory and was removed from the hot path.
+- A headless run reached actual 3D *Digimon World* gameplay in File City after the Bandai/title/intro sequence, not merely `started=true` or a 1280×720 canvas. Memory-card `.srm` autosave hooks fired during the run.
+- Service worker `dw1-v2.2.2` installed, activated and controlled a reload with **zero missing precache assets**; all local shell, OpenBIOS, licence, patch, manifest, webmanifest and icon URLs returned HTTP 200 with correct MIME types from the local preview server.
+- `server.mjs` now serves `.md` as `text/markdown` and `.LICENSE` as `text/plain`; Vercel serves the boot script, service worker, OpenBIOS and patch with explicit no-cache/immutable headers.
+- The committed 229 MB `part0.bin`…`part4.bin` and `manifest.json` are unchanged; the 51 KB repair patch is the only new disc asset. No proprietary Sony BIOS is present in the repository.
 
 ---
 
@@ -163,12 +175,13 @@ A hard refresh after deploying the fix is enough; no BIOS upload is required. HL
 | PlayStation 1 Button | Default Keyboard Key | In-Game Action |
 | :---: | :---: | :--- |
 | **D-Pad** | `Arrow Keys` | Move Player / Navigate V-Pet Care Menus |
-| **✕ (Cross)** | `Z` or `X` | Confirm / Talk / Feed / Praise / Command Partner |
-| **○ (Circle)** | `X` or `Z` | Cancel / Run |
-| **△ (Triangle)** | `A` or `S` | Open Inventory / Partner Status Menu |
-| **□ (Square)** | `S` or `A` | Check Map / Sub-Action |
+| **✕ (Cross)** | `X` | Confirm / Talk / Feed / Praise / Command Partner |
+| **○ (Circle)** | `Z` | Cancel / Run |
+| **△ (Triangle)** | `A` | Open Inventory / Partner Status Menu |
+| **□ (Square)** | `S` | Check Map / Sub-Action |
 | **Start** | `Enter` | Pause / Skip FMV Intro / Confirm Name |
-| **Select** | `Shift` | Toggle UI Overlay |
+| **Select** | `V` | Toggle UI Overlay |
+| **L1 / R1 / L2 / R2** | `Q` / `E` / `Tab` / `R` | Shoulder buttons / camera and menu modifiers |
 
 *(Full USB/Bluetooth Gamepad support is built in via the Web Gamepad API — press any button on your Xbox, DualSense, or DualShock controller to play!)*
 
@@ -181,13 +194,20 @@ DigimonWorld1Web/
 ├── public/
 │   ├── index.html                  # Direct-boot 3D PS1 Web Edition + Live 127-Digimon RAM Unlocker Bar
 │   ├── emulator.html               # Standalone/iframe full-screen emulator entry point
-│   ├── emulator-boot.js            # Shared BIOS-free boot, ROM cache and save-control logic
+│   ├── emulator-boot.js            # Shared OpenBIOS boot, disc repair, diagnostics & save-control logic
+│   ├── bios/                       # MIT-licensed PCSX-Redux OpenBIOS firmware + licence
 │   ├── assets/                     # GitHub Hero Banner (SVG) & OpenGraph Social Card (PNG)
 │   ├── cards/                      # 66 Decoded 2x EPX HD Bandai 3D Digimon Card Portraits (card_00..65.png)
 │   ├── maps/                       # 9 Decoded Pre-Rendered 3D File Island .TFS Backgrounds (file_city.png, etc.)
 │   ├── textures/                   # 14 Decoded 2x EPX HD PS1 .TIM UI & World Textures (TITLE256.png, etc.)
+│   ├── rom/
+│   │   ├── part0.bin … part4.bin  # Committed streamable disc chunks (unchanged by the boot fix)
+│   │   ├── manifest.json          # Chunk sizes and SHA-256 integrity hashes
+│   │   └── disc-patch-v2.json     # Small runtime repair from old patched disc to repaired ROM expansion
 │   └── data/
 │       └── reverse-engineered-db.json  # Complete extracted 127-Digimon, 121-Move, 128-Item & MIPS database
+├── scripts/
+│   └── generate-disc-patch.mjs    # Regenerates auditable disc-patch-v2.json from two raw disc images
 ├── server.mjs                      # Zero-dependency Node.js HTTP 206 Range-Streaming Server & MIPS Disassembler API
 ├── add-manifest-hashes.mjs         # Adds SHA-256 hashes + version to the ROM chunk manifest (IndexedDB cache)
 ├── split-rom-for-pages.mjs         # Splits the patched disc zip into <50 MB streamable chunks
@@ -206,4 +226,4 @@ DigimonWorld1Web/
 
 ## ⚖️ Legal & Disclaimer
 
-This repository provides reverse-engineering research tools, binary patch scripts, and a browser interface. **No proprietary Sony PlayStation BIOS files or raw `.bin`/`.iso` ROM dumps are hosted or distributed in this repository** (see [`.gitignore`](.gitignore)). The browser emulator uses the open, built-in HLE BIOS in PCSX-ReARMed rather than a Sony firmware image. *Digimon World* is a registered trademark of **Bandai Namco Entertainment Inc.**
+This repository provides reverse-engineering research tools, binary patch scripts, and a browser interface. **No proprietary Sony PlayStation BIOS is distributed.** The browser emulator uses the MIT-licensed PCSX-Redux OpenBIOS image in [`public/bios/`](public/bios/README.md) with PCSX-ReARMed instead of Sony firmware or its incompatible HLE path. The committed chunk files and runtime patch contain *Digimon World* game data; that game is a registered trademark of **Bandai Namco Entertainment Inc.**
