@@ -3,14 +3,14 @@
  * Provides instant startup, offline shell caching, and background asset prefetching.
  */
 
-const CACHE_NAME = 'dw1-v2.2.2';
+const CACHE_NAME = 'dw1-v2.2.3';
 
 // Shell resources to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/emulator-boot.js',
-  '/emulator-boot.js?v=2.2.2',
+  '/emulator-boot.js?v=2.2.3',
   '/bios/openbios.bin',
   '/bios/OpenBIOS.LICENSE',
   '/rom/disc-patch-v2.json',
@@ -34,6 +34,8 @@ const CDN_PRECACHE_ASSETS = [
 // Critical boot inputs: always try the network first so a redeploy cannot be
 // pinned to an old boot script, BIOS, manifest, or disc repair patch.
 const CRITICAL_PATHS = [
+  '/',
+  '/index.html',
   '/emulator-boot.js',
   '/rom/manifest.json',
   '/rom/disc-patch-v2.json',
@@ -57,10 +59,19 @@ async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   try {
     const response = await fetch(request, { cache: 'no-cache' });
-    if (response.ok) await cache.put(request, response.clone());
+    // The Cache API only accepts GET requests. EmulatorJS issues HEAD probes for
+    // the BIOS, and an unhandled cache.put() rejection here would fail that
+    // probe and abort the boot with "reading 'content-length'".
+    if (response.ok && request.method === 'GET') {
+      try {
+        await cache.put(request, response.clone());
+      } catch (err) {
+        // Caching is best-effort; never let it break the response.
+      }
+    }
     return response;
   } catch (err) {
-    const cached = await cache.match(request);
+    const cached = await cache.match(request).catch(() => undefined);
     if (cached) return cached;
     throw err;
   }

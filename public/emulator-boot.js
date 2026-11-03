@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.2';
+  const BOOT_VERSION = '2.2.3';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim. An empty
@@ -101,6 +101,9 @@
 
   const recordError = (source, error) => {
     const message = error && error.message ? error.message : String(error);
+    // A denied Wake Lock (common on browsers without the permission or without a
+    // user gesture) is expected and must not be reported as a boot failure.
+    if (/Wake Lock permission request denied/i.test(message)) return;
     bootDiagnostics.errors.push({ source, message, at: Date.now() });
     console.error('[DW1] ' + source + ': ' + message);
   };
@@ -255,7 +258,16 @@
         throw new Error(`OpenBIOS checksum mismatch from ${url}: ${digest}`);
       }
     }
-    return new File([bytes], 'openbios.bin', { type: 'application/octet-stream' });
+    // EmulatorJS 4.2.3's downloadGameFile() calls .split('/') on the BIOS value
+    // (and on the other download URLs) before it ever normalises a File/Blob to a
+    // name. Passing a File here therefore throws "t.split is not a function",
+    // which rejects the boot promise and leaves the player on a black screen.
+    // Hand the emulator the absolute, already-verified URL string instead.
+    return {
+      url: new URL(url, location.href).href,
+      name: 'openbios.bin',
+      size: bytes.length
+    };
   };
 
   const loadDiscPatch = async () => {
@@ -1287,9 +1299,9 @@
 
       // Step 4: Load free firmware and the small runtime disc repair patch
       setStage('bios', 'pending', 'Loading redistributable OpenBIOS');
-      const biosFile = await loadOpenBios();
-      window.EJS_biosUrl = biosFile;
-      setStage('bios', 'ok', `${biosFile.name} (${biosFile.size} bytes)`);
+      const bios = await loadOpenBios();
+      window.EJS_biosUrl = bios.url;
+      setStage('bios', 'ok', `${bios.name} (${bios.size} bytes) from ${bios.url}`);
       setStage('patchData', 'pending', 'Loading disc repair patch');
       const discPatch = await loadDiscPatch();
       window.DW1_DISC_PATCH = discPatch;

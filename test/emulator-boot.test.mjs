@@ -310,7 +310,7 @@ async function runBoot(options = {}) {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(BOOT_FILE, 'utf8'), context, { filename: 'emulator-boot.js' });
   await waitFor(() =>
-    (context.EJS_biosUrl instanceof File && context.DW1_DISC_PATCH) ||
+    (typeof context.EJS_biosUrl === 'string' && context.EJS_biosUrl.endsWith('/bios/openbios.bin') && context.DW1_DISC_PATCH) ||
     context.document.getElementById('loader-status').textContent.startsWith('Error') ||
     (context.DW1_BOOT_DIAGNOSTICS && context.DW1_BOOT_DIAGNOSTICS.stages.boot && context.DW1_BOOT_DIAGNOSTICS.stages.boot.status === 'error')
   );
@@ -348,8 +348,9 @@ test('shared boot script is valid and forces the OpenBIOS-backed PCSX-ReARMed co
 
   assert.equal(context.DW1_BOOT_STARTED, true);
   assert.equal(context.EJS_core, 'pcsx_rearmed');
-  assert.equal(context.EJS_biosUrl.name, 'openbios.bin');
-  assert.equal(context.EJS_biosUrl.size, 512 * 1024);
+  // EmulatorJS 4.2.3 calls .split('/') on EJS_biosUrl, so it must be a URL string.
+  // A File here throws "t.split is not a function" and aborts boot (black screen).
+  assert.equal(context.EJS_biosUrl, 'https://example.test/bios/openbios.bin');
   assert.equal(context.EJS_pathtodata, 'https://cdn.emulatorjs.org/4.2.3/data/');
   assert.equal(context.EJS_gameName, 'Digimon World (Europe)');
   assert.equal(context.EJS_gameUrl.name, 'Digimon World (Europe).zip');
@@ -366,7 +367,7 @@ test('shared boot script is valid and forces the OpenBIOS-backed PCSX-ReARMed co
   assert.equal(context.DW1_DISC_PATCH.version, 2);
   assert.ok(Array.isArray(context.DW1_DISC_PATCH.ranges));
   assert.ok(context.DW1_BOOT_DIAGNOSTICS);
-  assert.equal(context.DW1_BOOT_DIAGNOSTICS.version, '2.2.2');
+  assert.equal(context.DW1_BOOT_DIAGNOSTICS.version, '2.2.3');
   for (const stage of ['bootScript', 'manifest', 'chunks', 'disc', 'bios', 'patchData', 'coreSettings', 'emulatorConfig']) {
     assert.equal(context.DW1_BOOT_DIAGNOSTICS.stages[stage].status, 'ok', `${stage} must succeed`);
   }
@@ -409,7 +410,7 @@ test('all HTML entry points load the shared boot script and contain no stale emu
   const htmlFiles = ['index.html', 'public/index.html', 'public/emulator.html'];
   for (const relative of htmlFiles) {
     const html = fs.readFileSync(path.join(ROOT, relative), 'utf8');
-    assert.match(html, /emulator-boot\.js\?v=2\.2\.2/, `${relative} must load the versioned shared boot script`);
+    assert.match(html, /emulator-boot\.js\?v=2\.2\.3/, `${relative} must load the versioned shared boot script`);
     assert.doesNotMatch(html, /EJS_core\s*=\s*['"]psx['"]/, `${relative} must not select the generic PSX core`);
     assert.doesNotMatch(html, /cdn\.emulatorjs\.org\/stable/, `${relative} must not use the unpinned CDN path`);
     assert.doesNotMatch(html, /scph5502\.bin/, `${relative} must not request a proprietary BIOS`);
@@ -556,7 +557,7 @@ test('Service Worker file exists, parses without syntax errors, and registers in
   assert.match(swCode, /addEventListener\(['"]activate['"]/);
   assert.match(swCode, /addEventListener\(['"]fetch['"]/);
   assert.match(swCode, /pcsx_rearmed-wasm\.data/);
-  assert.match(swCode, /dw1-v2\.2\.2/);
+  assert.match(swCode, /dw1-v2\.2\.3/);
   assert.match(swCode, /\/bios\/openbios\.bin/);
   assert.match(swCode, /\/rom\/disc-patch-v2\.json/);
   assert.match(swCode, /networkFirst/);
@@ -750,5 +751,5 @@ test('README points to the live Vercel production deployment', () => {
   assert.doesNotMatch(readme, /https:\/\/digimon-world-1-web\.vercel\.app\//);
   assert.match(readme, /https:\/\/lin4cre\.github\.io\/DigimonWorld1Web\//);
   assert.match(readme, /Live deployment/);
-  assert.match(readme, /dw1-v2\.2\.2/);
+  assert.match(readme, /dw1-v2\.2\.3/);
 });
