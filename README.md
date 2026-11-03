@@ -7,9 +7,9 @@
 # 🦖 Digimon World 1 — Web Edition (`SLES-02914`)
 ### **Play the Real PlayStation 1 Game Directly in Your Browser**
 
-[![Play Now Live](https://img.shields.io/badge/▶️_PLAY_LIVE_IN_BROWSER-digimon--world--1--web.vercel.app-22c55e?style=for-the-badge)](https://digimon-world-1-web.vercel.app/)
-[![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://digimon-world-1-web.vercel.app/)
-[![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://digimon-world-1-web.vercel.app/)
+[![Play Now Live](https://img.shields.io/badge/▶️_PLAY_LIVE_IN_BROWSER-digimon--world--webui.vercel.app-22c55e?style=for-the-badge)](https://digimon-world-webui.vercel.app/)
+[![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://digimon-world-webui.vercel.app/)
+[![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://digimon-world-webui.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-eab308?style=for-the-badge)](LICENSE)
 
 <p align="center">
@@ -160,13 +160,20 @@ A hard refresh after deploying picks up the versioned boot script and the new se
 
 ### Validation performed for this fix
 
-- `npm test`: **22/22 passing**, including new checks for OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, control-settings seeding, service-worker precache paths, static MIME types, and Vercel cache headers.
+- `npm test`: **23/23 passing**, including new checks for OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, control-settings seeding, service-worker precache paths, static MIME types, Vercel cache headers, and the live deployment URL.
 - Production-mode Chromium boot against the unmodified `emulator-boot.js` (`v2.2.2`): all stages reached `ok` — `bootScript`, `session`, `manifest`, `chunks`, `disc`, `coreSettings`, `emulatorConfig`, `bios`, `patchData`, `loader`, `ejsReady`, `discMount`, `discPatch`, `gameStart`, `controlsAudio`, `firstFrame`, and `serviceWorker`.
 - `discPatch` applied **170 ranges / 8,770 bytes** in place with `FS.open('r+')`/`FS.read`/`FS.write`; the old whole-file `readFile`/`writeFile` path exhausted browser memory and was removed from the hot path.
 - A headless run reached actual 3D *Digimon World* gameplay in File City after the Bandai/title/intro sequence, not merely `started=true` or a 1280×720 canvas. Memory-card `.srm` autosave hooks fired during the run.
 - Service worker `dw1-v2.2.2` installed, activated and controlled a reload with **zero missing precache assets**; all local shell, OpenBIOS, licence, patch, manifest, webmanifest and icon URLs returned HTTP 200 with correct MIME types from the local preview server.
 - `server.mjs` now serves `.md` as `text/markdown` and `.LICENSE` as `text/plain`; Vercel serves the boot script, service worker, OpenBIOS and patch with explicit no-cache/immutable headers.
 - The committed 229 MB `part0.bin`…`part4.bin` and `manifest.json` are unchanged; the 51 KB repair patch is the only new disc asset. No proprietary Sony BIOS is present in the repository.
+
+### Live deployment
+
+- Primary Vercel production site: **<https://digimon-world-webui.vercel.app/>** — this is the deployment attached to the GitHub `main` branch. It serves `emulator-boot.js` `v2.2.2`, the `dw1-v2.2.2` service worker, `public/bios/openbios.bin`, `public/bios/OpenBIOS.LICENSE` and `public/rom/disc-patch-v2.json`.
+- GitHub Pages mirror: **<https://lin4cre.github.io/DigimonWorld1Web/>** — the same build is published under `/public/`, with `v2.2.2` assets available from `/public/emulator-boot.js` and `/public/sw.js`.
+- The older `digimon-world-1-web.vercel.app` hostname belongs to a separate, stale Vercel deployment and is **not** updated by this repository; use `digimon-world-webui.vercel.app` instead.
+- PR [#4](https://github.com/LIN4CRE/DigimonWorld1Web/pull/4) was merged as `4739da4`; Vercel reported `Deployment has completed` and GitHub Pages reported `success`.
 
 ---
 
