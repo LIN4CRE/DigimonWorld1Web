@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.4';
+  const BOOT_VERSION = '2.2.5';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does
@@ -531,6 +531,37 @@
     setStage('firstFrame', 'error', `No non-black frame within ${FIRST_FRAME_TIMEOUT_MS / 1000}s`);
   };
 
+  const assignDetectedGamepads = () => {
+    const ejs = window.EJS_emulator;
+    if (!ejs) return;
+    if (!Array.isArray(ejs.gamepadSelection)) ejs.gamepadSelection = ['', '', '', ''];
+    while (ejs.gamepadSelection.length < 4) ejs.gamepadSelection.push('');
+    const pads = [];
+    const seen = new Set();
+    if (ejs.gamepad && Array.isArray(ejs.gamepad.gamepads)) for (const p of ejs.gamepad.gamepads) if (p && p.id && !seen.has(p.id + '_' + p.index)) { seen.add(p.id + '_' + p.index); pads.push(p); }
+    try {
+      const nav = navigator.getGamepads ? navigator.getGamepads() : null;
+      if (nav) for (let i = 0; i < nav.length; i++) if (nav[i] && nav[i].id) { const key = nav[i].id + '_' + nav[i].index; if (!seen.has(key)) { seen.add(key); pads.push(nav[i]); } }
+    } catch (err) {}
+    for (const pad of pads) {
+      if (!pad || !pad.id) continue;
+      const id = pad.id + '_' + pad.index;
+      if (ejs.gamepadSelection.includes(id)) continue;
+      const slot = ejs.gamepadSelection.indexOf('');
+      if (slot === -1) break;
+      ejs.gamepadSelection[slot] = id;
+    }
+    // Never let one pad occupy more than one slot.
+    const claimed = new Set();
+    for (let i = 0; i < ejs.gamepadSelection.length; i++) {
+      const v = ejs.gamepadSelection[i];
+      if (v === '') continue;
+      if (claimed.has(v)) ejs.gamepadSelection[i] = '';
+      else claimed.add(v);
+    }
+    try { if (typeof ejs.updateGamepadLabels === 'function') ejs.updateGamepadLabels(); } catch (err) {}
+  };
+
   const installEmulatorHooks = () => {
     let emulatorRef = null;
     Object.defineProperty(window, 'EJS_emulator', {
@@ -559,22 +590,53 @@
         const parent = document.getElementById('game');
         if (parent && typeof parent.focus === 'function') parent.focus({ preventScroll: true });
       } catch (err) {}
+      // Keep #game focused for keyboard input even if focus drifts to the page
+      // background (or after the window regains focus), and rescue key presses
+      // that land outside #game by re-dispatching them to it.
+      try {
+        const game = document.getElementById('game');
+        if (game && !game.__dw1KeyTrap) {
+          game.__dw1KeyTrap = true;
+          const rescue = (ev) => {
+            const ae = document.activeElement;
+            if (ae === game || (ae && game.contains(ae))) return;
+            if (ae && ae !== document.body && ae !== document.documentElement) return;
+            try { game.focus({ preventScroll: true }); } catch (e) {}
+            try {
+              const clone = new KeyboardEvent(ev.type, {
+                key: ev.key, code: ev.code, bubbles: true, cancelable: true,
+                ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey, altKey: ev.altKey, metaKey: ev.metaKey
+              });
+              try { Object.defineProperty(clone, 'keyCode', { get: () => ev.keyCode }); } catch (e) {}
+              try { Object.defineProperty(clone, 'which', { get: () => ev.which }); } catch (e) {}
+              game.dispatchEvent(clone);
+              ev.preventDefault();
+            } catch (e) {}
+          };
+          window.addEventListener('keydown', rescue, true);
+          window.addEventListener('keyup', rescue, true);
+          window.addEventListener('focus', () => { try { game.focus({ preventScroll: true }); } catch (e) {} });
+        }
+      } catch (err) {}
       // EmulatorJS's GamepadHandler polls once in its constructor and can emit
       // "connected" before EmulatorJS subscribes, so a controller that was
-      // already plugged in stays unassigned. Claim any detected pads now.
+      // already plugged in stays unassigned. Claim any detected pads now and
+      // keep retrying, because Chrome only exposes gamepads after a user
+      // gesture (so a Bluetooth pad connected before the first key press is
+      // invisible until then).
+      try { assignDetectedGamepads(); } catch (err) {}
       try {
-        const ejs = window.EJS_emulator;
-        if (ejs && ejs.gamepad && Array.isArray(ejs.gamepad.gamepads) && Array.isArray(ejs.gamepadSelection)) {
-          for (const pad of ejs.gamepad.gamepads) {
-            if (!pad || !pad.id) continue;
-            const id = pad.id + '_' + pad.index;
-            if (ejs.gamepadSelection.includes(id)) continue;
-            const slot = ejs.gamepadSelection.indexOf('');
-            if (slot === -1) break;
-            ejs.gamepadSelection[slot] = id;
-          }
-          if (typeof ejs.updateGamepadLabels === 'function') ejs.updateGamepadLabels();
-        }
+        let retries = 0;
+        const retryTimer = setInterval(() => {
+          try { assignDetectedGamepads(); } catch (err) {}
+          if (++retries >= 60) clearInterval(retryTimer);
+        }, 2000);
+      } catch (err) {}
+      try {
+        const onGesture = () => { try { assignDetectedGamepads(); } catch (err) {} };
+        window.addEventListener('pointerdown', onGesture, true);
+        window.addEventListener('keydown', onGesture, true);
+        window.addEventListener('gamepadconnected', onGesture);
       } catch (err) {}
       setStage('controlsAudio', 'ok', 'EmulatorJS default controls, settings and audio left enabled; headless playback not verified');
       console.log('[DW1] Boot diagnostics', window.DW1_BOOT_DIAGNOSTICS);
