@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.7';
+  const BOOT_VERSION = '2.2.8';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does
@@ -584,6 +584,17 @@
       originalOnGameStart();
       bootDiagnostics.gameStarted = true;
       setStage('gameStart', 'ok', 'EJS_onGameStart fired');
+      // Widen the quiz mask from 1 to 0x0F so all 16 starters are reachable.
+      // The game masks the quiz result to 0 or 1 at 0x800EDA7C and 0x800EDAA8,
+      // limiting starters to Agumon and Gabumon. This cheat continuously writes
+      // 0x3044000F (andi v0, v0, 0x0F) to both addresses.
+      try {
+        const gm = window.EJS_emulator.gameManager;
+        if (gm && typeof gm.setCheat === 'function') {
+          gm.setCheat(0, true, '300EDA7C 3044000F');
+          gm.setCheat(1, true, '300EDAA8 3044000F');
+        }
+      } catch (err) {}
       // EmulatorJS listens for keydown on the #game parent. Focus it as soon as
       // the game starts so the first key press works without requiring a click.
       try {
