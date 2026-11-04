@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.5';
+  const BOOT_VERSION = '2.2.6';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does
@@ -1336,6 +1336,7 @@
       data.settings.retroarch_core = 'pcsx_rearmed';
       data.settings.pcsx_rearmed_bios = 'auto';
       data.settings.pcsx_rearmed_show_bios_bootlogo = 'disabled';
+      data.settings.vsync = 'disabled';
       window.localStorage.setItem(CORE_SETTINGS_KEY, JSON.stringify(data));
       setStage('coreSettings', 'ok', 'Pinned PCSX-ReARMed + Auto BIOS before core load');
     } catch (err) {
@@ -1365,7 +1366,8 @@
       'pcsx_rearmed_show_bios_bootlogo': 'disabled',
       'pcsx_rearmed_dithering': 'disabled',
       'pcsx_rearmed_neon_enhancement_enable': 'enabled',
-      'pcsx_rearmed_neon_enhancement_no_main': 'disabled'
+      'pcsx_rearmed_neon_enhancement_no_main': 'disabled',
+      'vsync': 'disabled'
     };
     primeCoreSettings();
     setStage('emulatorConfig', 'ok', 'OpenBIOS + PCSX-ReARMed auto BIOS configured');
