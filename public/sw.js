@@ -3,14 +3,14 @@
  * Provides instant startup, offline shell caching, and background asset prefetching.
  */
 
-const CACHE_NAME = 'dw1-v2.2.9';
+const CACHE_NAME = 'dw1-v2.2.10';
 
 // Shell resources to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/emulator-boot.js',
-  '/emulator-boot.js?v=2.2.9',
+  '/emulator-boot.js?v=2.2.10',
   '/bios/openbios.bin',
   '/bios/OpenBIOS.LICENSE',
   '/rom/disc-patch-v2.json',

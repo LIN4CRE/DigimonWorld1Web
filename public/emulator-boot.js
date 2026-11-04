@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.9';
+  const BOOT_VERSION = '2.2.10';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does
@@ -584,21 +584,44 @@
       originalOnGameStart();
       bootDiagnostics.gameStarted = true;
       setStage('gameStart', 'ok', 'EJS_onGameStart fired');
-      // Widen the quiz mask from 1 to 0x0F so all 16 starters are reachable.
-      // The game masks the quiz result to 0 or 1 at 0x800EDA7C and 0x800EDAA8,
-      // limiting starters to Agumon and Gabumon. This cheat continuously writes
-      // 0x3044000F (andi v0, v0, 0x0F) to both addresses.
+      // Patch the quiz mask and chart limits directly in the PS1 memory
+      // image inside the WebAssembly heap. setCheat() does not reliably
+      // modify MIPS code in this EmulatorJS build, so scan HEAPU8 for the
+      // exact instruction patterns and patch them in place.
+      //  - Quiz: andi v0, v0, 1 (0x30440001) -> andi v0, v0, 0x0F (0x3044000F)
+      //    so the quiz result can select any of 16 starters.
+      //  - Chart: three slti v0, X, 64 instructions (64 Digimon limit)
+      //    -> slti v0, X, 128, so the evolution chart can show 128.
       try {
         const gm = window.EJS_emulator.gameManager;
-        if (gm && typeof gm.setCheat === 'function') {
-          gm.setCheat(0, true, '300EDA7C 3044000F');
-          gm.setCheat(1, true, '300EDAA8 3044000F');
-          // Brute-force: widen chart loop limit from 64 to 128.
-          // SLES slti instructions at VRAM 0x800B8D28, 0x800B8D50, 0x800B90B4, 0x800D98C4
-          gm.setCheat(2, true, '300B8D28 2A420080');
-          gm.setCheat(3, true, '300B8D50 2A420080');
-          gm.setCheat(4, true, '300B90B4 2A420080');
-          gm.setCheat(5, true, '300D98C4 28A20080');
+        const heap = gm && gm.Module ? gm.Module.HEAPU8 : null;
+        if (heap) {
+          const pairs = [
+            { from: [0x01, 0x00, 0x44, 0x30], to: [0x0F, 0x00, 0x44, 0x30] },
+            { from: [0x40, 0x00, 0x42, 0x2A], to: [0x80, 0x00, 0x42, 0x2A] },
+            { from: [0x40, 0x00, 0xA2, 0x28], to: [0x80, 0x00, 0xA2, 0x28] },
+            { from: [0x40, 0x00, 0x41, 0x28], to: [0x80, 0x00, 0x41, 0x28] },
+          ];
+          let totalReplaced = 0;
+          for (const p of pairs) {
+            const f = p.from, t = p.to;
+            for (let i = 0; i < heap.length - 4; i++) {
+              if (heap[i] === f[0] && heap[i + 1] === f[1] && heap[i + 2] === f[2] && heap[i + 3] === f[3]) {
+                heap[i] = t[0]; heap[i + 1] = t[1]; heap[i + 2] = t[2]; heap[i + 3] = t[3];
+                totalReplaced++;
+              }
+            }
+          }
+          console.log('[DW1] Patched', totalReplaced, 'instructions in heap');
+          window.DW1_MEMORY_PATCH_COUNT = totalReplaced;
+        }
+      } catch (err) {}
+      // Keep a gamepad/cheat fallback in case the heap scan was too narrow.
+      try {
+        const gm2 = window.EJS_emulator.gameManager;
+        if (gm2 && typeof gm2.setCheat === 'function') {
+          gm2.setCheat(0, true, '300EDA7C 3044000F');
+          gm2.setCheat(1, true, '300EDAA8 3044000F');
         }
       } catch (err) {}
       // EmulatorJS listens for keydown on the #game parent. Focus it as soon as
