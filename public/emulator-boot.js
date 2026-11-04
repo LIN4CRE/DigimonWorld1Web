@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.8';
+  const BOOT_VERSION = '2.2.9';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does
@@ -593,6 +593,12 @@
         if (gm && typeof gm.setCheat === 'function') {
           gm.setCheat(0, true, '300EDA7C 3044000F');
           gm.setCheat(1, true, '300EDAA8 3044000F');
+          // Brute-force: widen chart loop limit from 64 to 128.
+          // SLES slti instructions at VRAM 0x800B8D28, 0x800B8D50, 0x800B90B4, 0x800D98C4
+          gm.setCheat(2, true, '300B8D28 2A420080');
+          gm.setCheat(3, true, '300B8D50 2A420080');
+          gm.setCheat(4, true, '300B90B4 2A420080');
+          gm.setCheat(5, true, '300D98C4 28A20080');
         }
       } catch (err) {}
       // EmulatorJS listens for keydown on the #game parent. Focus it as soon as
