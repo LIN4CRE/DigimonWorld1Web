@@ -170,8 +170,8 @@ function main() {
 
   // The naming script expects the original binary quiz result even though the
   // starter spawner uses the low four bits as a table index.
-  sles.writeUInt32LE(0x30440001, vaToFile(0x800EDA7C));
-  sles.writeUInt32LE(0x30440001, vaToFile(0x800EDAA8));
+  sles.writeUInt32LE(0x3044000F, vaToFile(0x800EDA7C));
+  sles.writeUInt32LE(0x3044000F, vaToFile(0x800EDAA8));
 
   // Regression assertions for every class of corruption found in the old patch.
   if (!sles.subarray(0xA1104, 0xA1104 + 128 * 4).equals(originalSles.subarray(0xA1104, 0xA1104 + 128 * 4))) {

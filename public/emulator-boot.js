@@ -29,7 +29,7 @@
   const STORE_SESSION = 'session';
   const STORE_BACKUPS = 'backups';
   const STORE_SETTINGS = 'settings';
-  const BOOT_VERSION = '2.2.6';
+  const BOOT_VERSION = '2.2.7';
   const OPENBIOS_SHA256 = 'fabe498fbf224e4721f12f31b6f5fe0659205e341dc4e5c5f91b9bd1a1011c57';
   const CORE_SETTINGS_KEY = 'ejs-1-psx-Digimon World (Europe)-settings';
   // EmulatorJS 4.2.3 loads controlSettings from localStorage verbatim and does

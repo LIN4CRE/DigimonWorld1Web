@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "Upgrade the committed patched SLES-02914 disc to the repaired 127-species ROM expansion.",
+  "description": "Upgrade the committed patched SLES-02914 disc to the repaired 127-species ROM expansion + starter fix.",
   "sourceSize": 387129792,
   "targetSize": 387129792,
   "sourceSha256": "bf580826d4a05fc43e25c16baa1d29730f813fabb40ff2dc47fc39ba15ac5236",
@@ -660,6 +660,18 @@
       "length": 4,
       "before": "8e0190b4",
       "after": "fa609646"
+    },
+    {
+      "offset": 354656388,
+      "length": 4,
+      "before": "01004430",
+      "after": "0f004430"
+    },
+    {
+      "offset": 354656432,
+      "length": 4,
+      "before": "01004430",
+      "after": "0f004430"
     },
     {
       "offset": 354726576,
