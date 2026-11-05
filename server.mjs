@@ -329,16 +329,25 @@ export function createAppServer() {
 export { parseRange, disasmMips, MIME_TYPES, PUBLIC_DIR, ROOT_DIR };
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isMain) {
+// Vercel's Node builder uses server.mjs as the serverless root entrypoint and
+// captures the request handler by intercepting server.listen() at module load.
+// We must therefore listen both when run directly (`node server.mjs`) and when
+// imported by the Vercel runtime (VERCEL=1). Plain imports (e.g. the test suite)
+// still never bind a port.
+if (isMain || process.env.VERCEL) {
   const server = createAppServer();
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`Digimon World (Europe) Reverse-Engineered WebUI running at http://localhost:${PORT}`);
   });
-  const shutdown = (signal) => {
-    console.log(`\n${signal} received — closing server gracefully.`);
-    server.close(() => process.exit(0));
-    setTimeout(() => process.exit(1), 10000).unref();
-  };
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  // Graceful shutdown only applies to the long-lived standalone process, not to
+  // the short-lived serverless invocation.
+  if (isMain) {
+    const shutdown = (signal) => {
+      console.log(`\n${signal} received — closing server gracefully.`);
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(1), 10000).unref();
+    };
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+  }
 }

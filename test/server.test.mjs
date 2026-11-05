@@ -4,7 +4,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { once } from 'node:events';
-import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createAppServer, parseRange, PUBLIC_DIR } from '../server.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -207,4 +208,51 @@ test('service worker is served with Service-Worker-Allowed header', async () => 
   assert.equal(res.status, 200);
   assert.equal(res.headers['service-worker-allowed'], '/');
   assert.match(res.headers['content-type'], /javascript/);
+});
+
+// Regression guard for the production serverless entrypoint. Vercel's Node
+// builder uses server.mjs as the root entrypoint: it imports the module (NOT as
+// main) with VERCEL=1 and captures the request handler by intercepting
+// server.listen(). If that listen call is ever gated behind an isMain-only
+// check, the deployed function has no handler and every request returns
+// 500 FUNCTION_INVOCATION_FAILED. This spawns the real module the same way and
+// asserts it binds and serves.
+test('serverless entrypoint listens when imported with VERCEL=1', async () => {
+  // Reserve an ephemeral free port, then release it for the child to bind.
+  const probe = http.createServer();
+  probe.listen(0, '127.0.0.1');
+  await once(probe, 'listening');
+  const testPort = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+
+  const entryUrl = pathToFileURL(path.join(ROOT, 'server.mjs')).href;
+  const child = spawn(
+    process.execPath,
+    ['--input-type=module', '-e', `await import(${JSON.stringify(entryUrl)});`],
+    { env: { ...process.env, VERCEL: '1', PORT: String(testPort) }, stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  let stderr = '';
+  child.stderr.on('data', (d) => { stderr += d; });
+  try {
+    // The "running at" log fires inside the listen callback, proving the VERCEL
+    // import path actually called server.listen().
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('timed out waiting for listen; stderr=' + stderr)),
+        8000
+      );
+      child.stdout.on('data', (d) => {
+        if (String(d).includes('running at')) { clearTimeout(timer); resolve(); }
+      });
+      child.on('exit', (code) => {
+        clearTimeout(timer);
+        reject(new Error('child exited early code=' + code + '; stderr=' + stderr));
+      });
+    });
+    const res = await fetch(`http://127.0.0.1:${testPort}/`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /html/);
+  } finally {
+    child.kill('SIGKILL');
+  }
 });
