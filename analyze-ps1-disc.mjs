@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { BIN_PATH, OUT_DIR, assertRomPresent } from './scripts/repo-paths.mjs';
 
-const BIN_PATH = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\rom\\Digimon World (Europe).bin';
-const OUT_DIR = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\extracted';
+assertRomPresent(fs);
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const fd = fs.openSync(BIN_PATH, 'r');

@@ -6,4 +6,17 @@ node_modules/
 /extracted/*.BIN
 .DS_Store
 
-.vercel
+# Local environment configuration (never commit real values)
+.env
+.env.local
+.env.*.local
+
+# Exported save artifacts (user data, not source)
+*.srm
+*.mcr
+*.mcd
+*.state
+
+# Test / tooling output
+coverage/
+*.log

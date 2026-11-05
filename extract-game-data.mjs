@@ -1,8 +1,11 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import { SLES_PATH } from './scripts/repo-paths.mjs';
 
-const OUT_DIR = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\extracted';
-const sles = fs.readFileSync(path.join(OUT_DIR, 'SLES_029.14'));
+if (!fs.existsSync(SLES_PATH)) {
+  console.error(`SLES_029.14 not found at ${SLES_PATH}. Run "node analyze-ps1-disc.mjs" first to extract it from the disc.`);
+  process.exit(1);
+}
+const sles = fs.readFileSync(SLES_PATH);
 
 function extractSjisStrings(buf) {
   const results = [];

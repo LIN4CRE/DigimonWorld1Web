@@ -1,9 +1,15 @@
-﻿# Development Progress
+# Development Progress
 
 ## Done
-- 128-slot evolution matrix (`0x8011B990`), 16 starter Rookies via Jijimon quiz (`0x8011C000`, spawner `0x80114B84`).
+- 128-slot evolution matrix and 16 starter Rookies via the Jijimon quiz. **Superseded storage:** the
+  early experimental writes at `0x8011B990` / `0x8011C000` overlapped live interrupt state and were
+  replaced by the safe resident block decompressed at startup to `0x801C8CD0..0x801CB560`
+  (raise/requirement/stat-gain/path tables + 16-byte starter roster at `0x801CB550`). The starter
+  spawner remains at `0x80114B84`. See the README RAM map for the authoritative addresses.
 - Training tables located: Green Gym requirements `0x80134A30` (28 B/entry), base evolution stats `0x80135114` (14 B/entry).
-- IndexedDB SHA-256 disc cache; memory-card export/import + versioned backups (10 most recent) in IndexedDB.
+- IndexedDB SHA-256 disc cache; memory-card export/import + versioned backups (15 most recent) in IndexedDB.
+- Local preview server hardened (directory-request crash fix, traversal guard, RFC 7233 ranges,
+  graceful shutdown) with HTTP integration tests; CI runs syntax + tests on Node 20/22.
 
 ## Digimon World 3 asset research (nothing from DW3 is committed to this repo)
 Source disc: standard ISO9660 Mode 2/2352, root has only SYSTEM.CNF, SLUS_014.36, DUMMY.; the real file tree is a second directory at LBA 473 (`DAT/`, `STR/`, `WSTAG*.PRO`...).
