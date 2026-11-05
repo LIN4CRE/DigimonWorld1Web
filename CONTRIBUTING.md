@@ -20,12 +20,13 @@ Thank you for your interest in contributing to **DigimonWorld1Web**! Whether you
    ```
 5. **Verify Syntax, Regression Tests & Asset Generation**:
    ```bash
-   node --check server.mjs
-   node --check patch-ps1-rom.mjs
-   node --check rom-expansion.mjs
-   npm test
-   node generate-github-assets.mjs
+   npm run check          # cross-platform syntax check of every module + browser scripts
+   npm test               # boot/ROM regression + HTTP server integration tests (no ROM required)
+   npm run generate:assets  # deterministic banner / OpenGraph / favicon / manifest generation
    ```
+
+   CI (`.github/workflows/ci.yml`) runs `npm run check` and `npm test` on Node 20 and 22 for
+   every push and pull request to `main`. Please make sure both pass locally before opening a PR.
 
    The ROM tests do not need a game dump. To preserve your clean dump while checking a full patch build, use:
    ```bash

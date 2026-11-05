@@ -2,9 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 
-const WORKSPACE = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui';
-const PUBLIC_DIR = path.join(WORKSPACE, 'public');
-const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
+import { PUBLIC_DIR, PUBLIC_ASSETS_DIR as ASSETS_DIR } from './scripts/repo-paths.mjs';
+
 fs.mkdirSync(ASSETS_DIR, { recursive: true });
 
 // Minimal PNG Decoder & Encoder (pure Node.js with zlib)

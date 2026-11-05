@@ -1,0 +1,14 @@
+# Dependabot keeps the pinned GitHub Actions up to date. The project has zero
+# npm runtime dependencies, so no package-ecosystem updates are configured.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"

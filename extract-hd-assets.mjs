@@ -2,11 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
-const ROOT_DIR = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui';
-const BIN_PATH = path.join(ROOT_DIR, 'rom', 'Digimon World (Europe).bin');
-const DISC_INDEX_PATH = path.join(ROOT_DIR, 'extracted', 'disc-index.json');
-const PUBLIC_MAPS_DIR = path.join(ROOT_DIR, 'public', 'maps');
-const PUBLIC_CARDS_DIR = path.join(ROOT_DIR, 'public', 'cards');
+import { ROOT_DIR, BIN_PATH, DISC_INDEX_PATH, PUBLIC_MAPS_DIR, PUBLIC_CARDS_DIR, assertRomPresent } from './scripts/repo-paths.mjs';
+
+assertRomPresent(fs);
 
 fs.mkdirSync(PUBLIC_MAPS_DIR, { recursive: true });
 fs.mkdirSync(PUBLIC_CARDS_DIR, { recursive: true });

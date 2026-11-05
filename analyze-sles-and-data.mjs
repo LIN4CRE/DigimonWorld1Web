@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { BIN_PATH, OUT_DIR, SLES_PATH } from './scripts/repo-paths.mjs';
 
-const BIN_PATH = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\rom\\Digimon World (Europe).bin';
-const OUT_DIR = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\extracted';
-const slesBuf = fs.readFileSync(path.join(OUT_DIR, 'SLES_029.14'));
+if (!fs.existsSync(SLES_PATH)) {
+  console.error(`SLES_029.14 not found at ${SLES_PATH}. Run "node analyze-ps1-disc.mjs" first to extract it from the disc.`);
+  process.exit(1);
+}
+const slesBuf = fs.readFileSync(SLES_PATH);
 
 // 1. Parse PS-X EXE Header (0x800 bytes)
 const magic = slesBuf.toString('ascii', 0, 8);

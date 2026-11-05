@@ -3,8 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { PUBLIC_ROM_DIR } from './scripts/repo-paths.mjs';
 
-const dir = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), 'public', 'rom');
+const dir = PUBLIC_ROM_DIR;
 const mPath = path.join(dir, 'manifest.json');
 const manifest = JSON.parse(fs.readFileSync(mPath, 'utf8'));
 const all = crypto.createHash('sha256');

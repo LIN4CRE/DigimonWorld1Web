@@ -1,8 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const src = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\rom\\Digimon World (Europe).zip';
-const outDir = 'C:\\Users\\David\\.gemini\\antigravity\\scratch\\digimon-world-webui\\public\\rom';
+import { ZIP_PATH, PUBLIC_ROM_DIR } from './scripts/repo-paths.mjs';
+
+const src = ZIP_PATH;
+const outDir = PUBLIC_ROM_DIR;
+if (!fs.existsSync(src)) {
+  console.error(`Disc ZIP not found at ${src}. Set DIGIMON_ROM_ZIP or place the archive in rom/.`);
+  process.exit(1);
+}
 fs.mkdirSync(outDir, { recursive: true });
 
 const buf = fs.readFileSync(src);

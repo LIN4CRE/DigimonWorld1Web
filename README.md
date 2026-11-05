@@ -11,6 +11,7 @@
 [![PlayStation 1](https://img.shields.io/badge/PlayStation_1-SLES--02914_(PAL)-f59e0b?style=for-the-badge&logo=playstation&logoColor=white)](https://digimon-world-webui.vercel.app/)
 [![Engine](https://img.shields.io/badge/Core-PCSX--ReARMed_WASM-a855f7?style=for-the-badge)](https://digimon-world-webui.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-eab308?style=for-the-badge)](LICENSE)
+[![CI](https://github.com/LIN4CRE/DigimonWorld1Web/actions/workflows/ci.yml/badge.svg)](https://github.com/LIN4CRE/DigimonWorld1Web/actions/workflows/ci.yml)
 
 <p align="center">
   <img src="public/favicon.svg" width="52" height="52" alt="V-Pet Icon" />
@@ -45,12 +46,51 @@
 - 🏋️ **All table consumers redirected** — verified references in `SLES_029.14`, `EVL_REL.BIN`, `TRN_REL.BIN`, and `TRN2_REL.BIN` now use the expanded raise, requirement, stat-gain, and path tables. Reverse paths are derived from forward edges and validated against the engine's five-predecessor/six-target limits.
 - 💾 **IndexedDB disc cache** — the ~240 MB disc is downloaded **once**, verified with SHA-256, and stored in the browser's IndexedDB. Return visits boot from local storage with no re-download; changed chunks are re-fetched automatically and stale chunks removed. Persistent storage is requested and quota/write failures fall back to normal streaming. Run `node add-manifest-hashes.mjs` after re-splitting the ROM to refresh hashes.
 - ⚡ **True Instant-Play & Automatic Session Resume** — Clicking your browser bookmark instantly returns you directly into your active game session where you left off. The engine continuously saves live state snapshots and memory-card data quietly in the background (every 25s, on tab switch / window minimize, on pagehide, and at in-game save points) with zero lag or frame drops.
-- 🛡️ **Safe Atomic Backups & Multi-Tab Protection** — Prevents save corruption by rejecting incomplete snapshots and retaining rolling versioned backups (last 15). Multi-tab coordination via BroadcastChannel prevents conflicting writes.
+- 🛡️ **Safe Atomic Backups & Multi-Tab Awareness** — Prevents save corruption by rejecting incomplete snapshots and retaining rolling versioned backups (last 15). BroadcastChannel coordination notifies your other open tabs when a session is saved. Saves are last-write-wins, so keep a single active gameplay tab to avoid one tab overwriting another's progress.
 - ⚡ **Progressive Parallel Loading & PWA Service Worker** — Cached disc chunks are read concurrently via IndexedDB for near-instant return visits, while the Service Worker caches the EmulatorJS runtime, WebAssembly core, and UI assets for offline readiness.
 - 💾 **Dual Save Export / Import** — Top-right controls allow exporting standard PS1 Memory Card (.srm) saves (for DuckStation/RetroArch) or instant live state snapshots (.state), restoring versioned backups, or starting a clean new game with automatic backup safeguards.
 - 🐉 **Veemon stand-in** — species slot 114 is named Veemon and reuses Agumon's unmodified `AGUM` model/texture (there is no blue recolor). Veemon evolves from Koromon into Greymon, Angemon, Kabuterimon, or Garurumon. A separate DW3 model-import effort is not part of this patch.
 
 **Next up:** gamepad polish, progressive first-playable loading.
+
+---
+
+## 🛡️ Repository Hardening & Maintenance
+
+The local preview server and tooling were audited and hardened without changing the
+verified emulator boot path, ROM data, or save behavior:
+
+- **Server crash fix (P0):** `server.mjs` previously crashed the whole process on any
+  directory request (e.g. `/maps/`) via an unhandled `EISDIR` stream error. It now serves
+  regular files only, handles stream errors and client aborts, and returns `404` for
+  directories. Covered by HTTP integration tests.
+- **Path-traversal guard:** separator-aware containment check prevents escaping `public/`
+  (including encoded `..` and sibling-prefix paths).
+- **Correct HTTP ranges:** RFC 7233 parsing with `206` partial content, suffix/open-ended
+  ranges, `416` for unsatisfiable ranges, and `200` fallback for malformed headers. `HEAD`
+  is supported, and security headers match the Vercel configuration.
+- **Graceful shutdown:** `SIGTERM`/`SIGINT` close the server cleanly; malformed request
+  lines no longer crash it.
+- **Portable tooling:** every ROM/asset script resolves paths from the repository root
+  (`scripts/repo-paths.mjs`) instead of hardcoded machine-specific absolute paths, with
+  environment-variable overrides and actionable errors when the (gitignored) disc is absent.
+- **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `npm run check`
+  (syntax) and `npm test` on Node 20 and 22 for every push/PR to `main`, with least-privilege
+  `contents: read` permissions and SHA-pinned actions. Dependabot keeps the actions current.
+- **Security policy:** see [`SECURITY.md`](SECURITY.md) for private vulnerability reporting.
+
+### Environment variables
+
+The static deployment needs no configuration. For the local server and tooling, copy
+[`.env.example`](.env.example) and export the values (or run `node --env-file=.env server.mjs`):
+
+| Variable | Used by | Default | Purpose |
+| :--- | :--- | :--- | :--- |
+| `PORT` | `server.mjs` | `3456` | Local HTTP server port |
+| `DIGIMON_ROM_ZIP` | `server.mjs`, `split-rom-for-pages.mjs` | `rom/Digimon World (Europe).zip` | Disc ZIP location |
+| `DIGIMON_ROM_BIN` | ROM tooling | `rom/Digimon World (Europe).bin` | Raw disc image location |
+| `DIGIMON_EXTRACTED_DIR` | ROM tooling | `extracted/` | Extracted executable/index output |
+| `DIGIMON_PUBLIC_DIR` | ROM tooling | `public/` | Static asset output root |
 
 ---
 ## 🖼️ Decoded 3D File Island Maps & HD 3D Cards
@@ -170,7 +210,7 @@ Bindings are now stored as key codes (`13`, `38`, `90`, …) and any legacy name
 
 ### Validation performed for this fix
 
-- `npm test`: **24/24 passing**, including new checks for OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, numeric control-settings seeding and legacy key-name migration, service-worker precache paths, static MIME types, Vercel cache headers, and the live deployment URL.
+- `npm test`: **41/41 passing** — 24 boot/ROM regression checks (OpenBIOS checksum, disc-patch structure, streamed FS repair, stage diagnostics, numeric control-settings seeding and legacy key-name migration, service-worker precache paths, static MIME types, Vercel cache headers, live deployment URL, evolution graph/compression/MIPS/records) plus 17 HTTP server integration checks (directory-request crash regression, path traversal, RFC 7233 ranges/416, HEAD, security headers, graceful behavior under client abort, and the disc/hex/disassembler APIs).
 - Production-mode Chromium boot against the unmodified `emulator-boot.js` (`v2.2.10`): all stages reached `ok` — `bootScript`, `session`, `manifest`, `chunks`, `disc`, `coreSettings`, `emulatorConfig`, `bios`, `patchData`, `loader`, `ejsReady`, `discMount`, `discPatch`, `gameStart`, `controlsAudio`, `firstFrame`, and `serviceWorker`.
 - `discPatch` applied **170 ranges / 8,770 bytes** in place with `FS.open('r+')`/`FS.read`/`FS.write`; the old whole-file `readFile`/`writeFile` path exhausted browser memory and was removed from the hot path.
 - A headless run reached actual 3D *Digimon World* gameplay in File City after the Bandai/title/intro sequence, not merely `started=true` or a 1280×720 canvas. Memory-card `.srm` autosave hooks fired during the run.
@@ -224,20 +264,27 @@ DigimonWorld1Web/
 │   └── data/
 │       └── reverse-engineered-db.json  # Complete extracted 127-Digimon, 121-Move, 128-Item & MIPS database
 ├── scripts/
-│   └── generate-disc-patch.mjs    # Regenerates auditable disc-patch-v2.json from two raw disc images
+│   ├── generate-disc-patch.mjs    # Regenerates auditable disc-patch-v2.json from two raw disc images
+│   ├── repo-paths.mjs             # Portable repo-relative path resolution (env-overridable) for all tooling
+│   └── check-syntax.mjs           # Cross-platform `node --check` over every module (npm run check / CI)
 ├── server.mjs                      # Zero-dependency Node.js HTTP 206 Range-Streaming Server & MIPS Disassembler API
 ├── add-manifest-hashes.mjs         # Adds SHA-256 hashes + version to the ROM chunk manifest (IndexedDB cache)
 ├── split-rom-for-pages.mjs         # Splits the patched disc zip into <50 MB streamable chunks
 ├── patch-ps1-rom.mjs               # Clean-disc driver, EDC writer, and read-back verification
 ├── rom-expansion.mjs               # Evolution graph, compressor, MIPS builders, records, and relocation logic
 ├── test-support/mips-interpreter.mjs # Delay-slot-aware MIPS interpreter used by ROM-independent tests
-├── extract-ps1-data.mjs            # ISO-9660 Sector Extractor & SLES_029.14 Struct Parser
-├── extract-ps1-textures.mjs        # PS1 4/8/16-BPP .TIM Texture & 3D Card Decoder
-├── extract-tfs-maps.mjs            # Pre-Rendered 3D File Island .TFS Map Background Decoder
-├── upscale-hd.mjs                  # Pure-JS 2x EPX / Scale2x + Bilateral HD Texture Upscaler
+├── analyze-ps1-disc.mjs            # ISO-9660 disc index extractor (PVD, directory tree, SYSTEM.CNF, SLES)
+├── analyze-sles-and-data.mjs       # SLES_029.14 PS-X EXE header + data-table analyzer
+├── extract-game-data.mjs           # Shift-JIS full-width English string extractor from SLES_029.14
+├── extract-hd-assets.mjs           # Pre-rendered 3D .TFS map + .TIM 3D card decoder into public/
+├── build-reverse-engineered-db.mjs # Builds the complete 127-Digimon / 121-Move / 128-Item database
 ├── generate-github-assets.mjs      # Pure-JS Generator for GitHub Banner, OpenGraph Card, Favicons & WebManifest
-└── test/                           # Emulator boot checks plus ROM graph/compression/MIPS/record regression tests
+└── test/                           # Boot, ROM graph/compression/MIPS/record, and HTTP server regression tests
 ```
+
+> All tooling resolves paths relative to the repository root (via `scripts/repo-paths.mjs`),
+> so it runs from a clean checkout on any OS. Override disc locations with `DIGIMON_ROM_BIN`,
+> `DIGIMON_ROM_ZIP`, `DIGIMON_EXTRACTED_DIR`, or `DIGIMON_PUBLIC_DIR` (see [`.env.example`](.env.example)).
 
 ---
 

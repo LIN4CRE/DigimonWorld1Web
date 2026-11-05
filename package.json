@@ -1,18 +1,26 @@
 {
   "name": "digimon-world-1-web",
-  "version": "2.0.0",
+  "version": "2.2.10",
   "description": "Playable 2x Neon HD Web Edition of Digimon World 1 (SLES-02914) with all 127 Digimon unlocked via binary ROM & MMD patches",
   "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test",
+    "check": "node scripts/check-syntax.mjs",
     "patch:rom": "node patch-ps1-rom.mjs",
     "generate:disc-patch": "node scripts/generate-disc-patch.mjs",
     "generate:assets": "node generate-github-assets.mjs",
-    "extract:data": "node extract-ps1-data.mjs",
-    "extract:textures": "node extract-ps1-textures.mjs",
-    "extract:maps": "node extract-tfs-maps.mjs",
-    "upscale:hd": "node upscale-hd.mjs"
+    "analyze:disc": "node analyze-ps1-disc.mjs",
+    "analyze:sles": "node analyze-sles-and-data.mjs",
+    "extract:data": "node extract-game-data.mjs",
+    "extract:assets": "node extract-hd-assets.mjs",
+    "build:db": "node build-reverse-engineered-db.mjs",
+    "split:rom": "node split-rom-for-pages.mjs",
+    "manifest:hashes": "node add-manifest-hashes.mjs"
   },
   "repository": {
     "type": "git",

@@ -1,15 +1,16 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { URL, fileURLToPath } from 'node:url';
+import { URL, fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
-const ROM_ZIP_PATH = process.env.DIGIMON_ROM_ZIP || 'D:\\games\\Digimon World (Europe).zip';
+const ROM_ZIP_PATH = process.env.DIGIMON_ROM_ZIP || path.join(ROOT_DIR, 'rom', 'Digimon World (Europe).zip');
 const BIN_PATH = path.join(ROOT_DIR, 'rom', 'Digimon World (Europe).bin');
 const SLES_PATH = path.join(ROOT_DIR, 'extracted', 'SLES_029.14');
 const DISC_INDEX_PATH = path.join(ROOT_DIR, 'extracted', 'disc-index.json');
 const DB_PATH = path.join(PUBLIC_DIR, 'data', 'reverse-engineered-db.json');
+const PORT = process.env.PORT || 3456;
 
 const slesBuf = fs.existsSync(SLES_PATH) ? fs.readFileSync(SLES_PATH) : null;
 const discIndex = fs.existsSync(DISC_INDEX_PATH)
@@ -79,37 +80,6 @@ function disasmMips(word, vaddr) {
   return `.word 0x${word.toString(16).toUpperCase().padStart(8, '0')}`;
 }
 
-function serveFileWithRange(req, res, filePath, contentType) {
-  if (!fs.existsSync(filePath)) {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'File not found' }));
-    return;
-  }
-  const stat = fs.statSync(filePath);
-  const range = req.headers.range;
-  res.setHeader('Accept-Ranges', 'bytes');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-
-  if (range) {
-    const parts = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
-    const chunkSize = (end - start) + 1;
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
-      'Content-Length': chunkSize,
-      'Content-Type': contentType
-    });
-    fs.createReadStream(filePath, { start, end }).pipe(res);
-  } else {
-    res.writeHead(200, {
-      'Content-Length': stat.size,
-      'Content-Type': contentType
-    });
-    fs.createReadStream(filePath).pipe(res);
-  }
-}
-
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -126,10 +96,112 @@ const MIME_TYPES = {
   '.license': 'text/plain; charset=utf-8'
 };
 
-const server = http.createServer((req, res) => {
+// Parse a single-range RFC 7233 "bytes=" header.
+// Returns { start, end } for a satisfiable range, false for an unsatisfiable
+// range (416), or null for a malformed/multi-range header (ignore -> full 200).
+function parseRange(header, size) {
+  if (typeof header !== 'string') return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match) return null;
+  const startStr = match[1];
+  const endStr = match[2];
+  if (startStr === '' && endStr === '') return null;
+  if (size <= 0) return false;
+  let start;
+  let end;
+  if (startStr === '') {
+    const suffix = parseInt(endStr, 10);
+    if (!Number.isFinite(suffix) || suffix <= 0) return false;
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = parseInt(startStr, 10);
+    end = endStr === '' ? size - 1 : parseInt(endStr, 10);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    if (end >= size) end = size - 1;
+  }
+  if (start < 0 || start >= size || start > end) return false;
+  return { start, end };
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify(payload));
+}
+
+function serveFileWithRange(req, res, filePath, contentType) {
+  let stat;
   try {
-    const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
-    const pathname = decodeURIComponent(parsedUrl.pathname);
+    stat = fs.statSync(filePath);
+  } catch (err) {
+    return sendJson(res, 404, { error: 'File not found' });
+  }
+  // Only regular files may be streamed. Directories previously produced an
+  // unhandled EISDIR 'error' event that crashed the entire process.
+  if (!stat.isFile()) {
+    return sendJson(res, 404, { error: 'File not found' });
+  }
+
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (req.method === 'HEAD') {
+    res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': contentType });
+    return res.end();
+  }
+
+  const rangeHeader = req.headers.range;
+  let start = 0;
+  let end = stat.size - 1;
+  let status = 200;
+  if (rangeHeader) {
+    const parsed = parseRange(rangeHeader, stat.size);
+    if (parsed === false) {
+      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
+      return res.end();
+    }
+    if (parsed) {
+      start = parsed.start;
+      end = parsed.end;
+      status = 206;
+    }
+  }
+
+  const headers = {
+    'Content-Length': end - start + 1,
+    'Content-Type': contentType
+  };
+  if (status === 206) headers['Content-Range'] = `bytes ${start}-${end}/${stat.size}`;
+  res.writeHead(status, headers);
+
+  const stream = fs.createReadStream(filePath, { start, end });
+  stream.on('error', (err) => {
+    if (!res.headersSent) {
+      sendJson(res, 500, { error: 'Read failed' });
+    } else {
+      res.destroy(err);
+    }
+  });
+  res.on('close', () => stream.destroy());
+  stream.pipe(res);
+}
+
+function setSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+}
+
+function requestHandler(req, res) {
+  setSecurityHeaders(res);
+  try {
+    const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    let pathname;
+    try {
+      pathname = decodeURIComponent(parsedUrl.pathname);
+    } catch (err) {
+      return sendJson(res, 400, { error: 'Malformed URL encoding' });
+    }
 
     // 1. Stream ROM files for EmulatorJS
     if (pathname === '/rom/Digimon World (Europe).zip') {
@@ -145,8 +217,7 @@ const server = http.createServer((req, res) => {
 
     // 2. API: Disc file index
     if (pathname === '/api/disc-files') {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      return res.end(JSON.stringify(discIndex));
+      return sendJson(res, 200, discIndex);
     }
 
     // 3. API: Read raw hex slice from any file on the PS1 disc by LBA
@@ -154,49 +225,52 @@ const server = http.createServer((req, res) => {
       const lba = parseInt(parsedUrl.searchParams.get('lba') || '23', 10);
       const size = parseInt(parsedUrl.searchParams.get('size') || '256', 10);
       const byteOffset = parseInt(parsedUrl.searchParams.get('offset') || '0', 10);
+      if (!Number.isFinite(lba) || lba < 0 || !Number.isFinite(byteOffset) || byteOffset < 0) {
+        return sendJson(res, 400, { error: 'Invalid lba/offset' });
+      }
       if (!fs.existsSync(BIN_PATH)) {
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        return res.end(JSON.stringify({
+        return sendJson(res, 200, {
           lba,
           byteOffset,
           length: 0,
           rows: [{ offset: '0x000000', hex: 'Place Digimon World (Europe).bin in ./rom/', ascii: 'ROM_NOT_MOUNTED' }]
-        }));
+        });
       }
-      const maxLen = Math.min(Math.max(16, size - byteOffset), 512);
+      const maxLen = Math.min(Math.max(16, (Number.isFinite(size) ? size : 256) - byteOffset), 512);
       const startSector = lba + Math.floor(byteOffset / 2048);
       const sectorInOffset = byteOffset % 2048;
 
       const fd = fs.openSync(BIN_PATH, 'r');
-      const out = Buffer.alloc(4096);
-      fs.readSync(fd, out, 0, 2048, startSector * 2352 + 24);
-      fs.readSync(fd, out, 2048, 2048, (startSector + 1) * 2352 + 24);
-      fs.closeSync(fd);
+      try {
+        const out = Buffer.alloc(4096);
+        fs.readSync(fd, out, 0, 2048, startSector * 2352 + 24);
+        fs.readSync(fd, out, 2048, 2048, (startSector + 1) * 2352 + 24);
 
-      const slice = out.subarray(sectorInOffset, sectorInOffset + maxLen);
-      const rows = [];
-      for (let i = 0; i < slice.length; i += 16) {
-        const chunk = slice.subarray(i, i + 16);
-        const hex = Array.from(chunk).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
-        const ascii = Array.from(chunk).map(b => (b >= 0x20 && b <= 0x7E) ? String.fromCharCode(b) : '.').join('');
-        rows.push({
-          offset: '0x' + (byteOffset + i).toString(16).toUpperCase().padStart(6, '0'),
-          hex,
-          ascii
-        });
+        const slice = out.subarray(sectorInOffset, sectorInOffset + maxLen);
+        const rows = [];
+        for (let i = 0; i < slice.length; i += 16) {
+          const chunk = slice.subarray(i, i + 16);
+          const hex = Array.from(chunk).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+          const ascii = Array.from(chunk).map(b => (b >= 0x20 && b <= 0x7E) ? String.fromCharCode(b) : '.').join('');
+          rows.push({
+            offset: '0x' + (byteOffset + i).toString(16).toUpperCase().padStart(6, '0'),
+            hex,
+            ascii
+          });
+        }
+        return sendJson(res, 200, { lba, byteOffset, length: slice.length, rows });
+      } finally {
+        fs.closeSync(fd);
       }
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      return res.end(JSON.stringify({ lba, byteOffset, length: slice.length, rows }));
     }
 
     // 4. API: Live MIPS R3000A Disassembler on SLES_029.14
     if (pathname === '/api/mips-disasm') {
       if (!slesBuf) {
-        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        return res.end(JSON.stringify({
+        return sendJson(res, 200, {
           startVaddr: '0x800A4B40',
           instructions: fallbackDb?.executable?.entryDisasm || []
-        }));
+        });
       }
       const vaddrStr = (parsedUrl.searchParams.get('vaddr') || '0x800A4B40').replace(/^0x/i, '');
       let vaddr = parseInt(vaddrStr, 16) >>> 0;
@@ -204,7 +278,7 @@ const server = http.createServer((req, res) => {
         vaddr = 0x800A4B40;
       }
       vaddr = (vaddr & ~3) >>> 0;
-      const count = Math.min(128, Math.max(8, parseInt(parsedUrl.searchParams.get('count') || '40', 10)));
+      const count = Math.min(128, Math.max(8, parseInt(parsedUrl.searchParams.get('count') || '40', 10) || 40));
       const startOff = 0x800 + (vaddr - 0x80090800);
 
       const instructions = [];
@@ -220,15 +294,14 @@ const server = http.createServer((req, res) => {
           asm: disasmMips(word, curVaddr)
         });
       }
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      return res.end(JSON.stringify({ startVaddr: '0x' + vaddr.toString(16).toUpperCase(), instructions }));
+      return sendJson(res, 200, { startVaddr: '0x' + vaddr.toString(16).toUpperCase(), instructions });
     }
 
-    // 5. Static files from public/
-    let relPath = pathname === '/' ? '/index.html' : pathname;
+    // 5. Static files from public/ (separator-aware traversal guard)
+    const relPath = pathname === '/' ? '/index.html' : pathname;
     const safePath = path.normalize(path.join(PUBLIC_DIR, relPath));
-    if (!safePath.startsWith(PUBLIC_DIR)) {
-      res.writeHead(403);
+    if (safePath !== PUBLIC_DIR && !safePath.startsWith(PUBLIC_DIR + path.sep)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       return res.end('Forbidden');
     }
     if (pathname === '/sw.js') res.setHeader('Service-Worker-Allowed', '/');
@@ -236,12 +309,36 @@ const server = http.createServer((req, res) => {
     const mime = MIME_TYPES[ext] || 'application/octet-stream';
     return serveFileWithRange(req, res, safePath, mime);
   } catch (err) {
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: err.message }));
+    if (!res.headersSent) {
+      sendJson(res, 500, { error: 'Internal server error' });
+    } else {
+      res.destroy(err);
+    }
   }
-});
+}
 
-const PORT = process.env.PORT || 3456;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Digimon World (Europe) Reverse-Engineered WebUI running at http://localhost:${PORT}`);
-});
+export function createAppServer() {
+  const server = http.createServer(requestHandler);
+  // A malformed request line must never take the process down.
+  server.on('clientError', (err, socket) => {
+    if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+  });
+  return server;
+}
+
+export { parseRange, disasmMips, MIME_TYPES, PUBLIC_DIR, ROOT_DIR };
+
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  const server = createAppServer();
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Digimon World (Europe) Reverse-Engineered WebUI running at http://localhost:${PORT}`);
+  });
+  const shutdown = (signal) => {
+    console.log(`\n${signal} received — closing server gracefully.`);
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
